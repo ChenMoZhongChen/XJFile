@@ -1,0 +1,83 @@
+XJ File 第三方软件声明（NOTICE）
+
+XJ File 自身代码以 MIT License 发布，版权人 XJoffice ChenMoZhongChen。
+完整 MIT 文本见 assets/licenses/xjfile-mit.txt。
+第三方组件仍归各自版权人所有，并继续适用其原始许可证；MIT 不覆盖它们。
+
+运行时组件
+
+AndroidX / Jetpack Compose
+Copyright (C) The Android Open Source Project
+License: Apache License 2.0
+
+Accompanist SwipeRefresh
+Copyright 2021 The Android Open Source Project
+License: Apache License 2.0
+
+AndroidX Media3 / ExoPlayer
+Copyright (C) The Android Open Source Project
+License: Apache License 2.0
+
+Kotlin Coroutines
+Copyright 2016-2024 JetBrains s.r.o.
+License: Apache License 2.0
+
+JSch (mwiede fork)
+Copyright (c) 2002-2024 Atsuhiko Yamanaka, JCraft, Inc.
+License: BSD 3-Clause
+
+SMBJ
+Copyright 2016-2024 Hierynomus
+License: Apache License 2.0
+
+jcifs-ng
+Copyright (C) 2015-2024 AgNO3 and contributors
+License: GNU Lesser General Public License 2.1 (LGPL-2.1)
+jcifs-ng is used unmodified. Complete source is provided in
+assets/licenses/sources/jcifs-ng-2.1.10-sources.jar and can be
+exported from the in-app open-source notice page.
+
+Bouncy Castle
+Copyright (c) 2000-2024 The Legion of the Bouncy Castle Inc.
+License: Bouncy Castle Licence (MIT-style)
+
+AndroidSVG
+Copyright 2013-2024 BigBadaboom
+License: Apache License 2.0
+
+ICU4J
+Copyright (C) 2016-2024 Unicode, Inc. and others
+License: Unicode License
+
+Apache Commons Compress
+Copyright 2002-2024 The Apache Software Foundation
+License: Apache License 2.0
+This product includes software developed at
+The Apache Software Foundation (http://www.apache.org/).
+
+XZ for Java
+Public domain; authors include Lasse Collin and Igor Pavlov.
+License: Public Domain
+
+SLF4J
+Copyright (c) 2004-2024 QOS.ch
+License: MIT License
+
+构建工具
+
+Kotlin, Gradle, Android Gradle Plugin
+These are build-time tools and are not bundled as runtime components.
+Licenses: Apache License 2.0
+
+完整许可证文本
+
+assets/licenses/apache-2.0.txt
+assets/licenses/lgpl-2.1.txt
+assets/licenses/bsd-3-clause.txt
+assets/licenses/mit.txt
+assets/licenses/unicode.txt
+assets/licenses/bouncycastle.txt
+assets/licenses/xz-public-domain.txt
+assets/licenses/xjfile-mit.txt
+
+本文件是第三方 NOTICE 汇总，不替代各项目的完整许可证正文。

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <external-path name="external_files" path="." />
+    <root-path name="root_storage" path="/storage/" />
+    <!-- 网络文件先下到这里，再用 FileProvider 交给系统应用打开 -->
+    <cache-path name="preview" path="preview/" />
+</paths>

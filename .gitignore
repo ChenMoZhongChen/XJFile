@@ -1,0 +1,44 @@
+*.iml
+.gradle
+# Gradle 主目录（缓存/依赖/wrapper）搬进工作区后别纳入版本库：5 GB 级别
+/.gradle-home/
+/.gradle-home-fresh/
+/local.properties
+/.idea/caches
+/.idea/libraries
+/.idea/modules.xml
+/.idea/workspace.xml
+/.idea/navEditor.xml
+/.idea/assetWizardSettings.xml
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+
+# 构建产物和临时发布物
+/app/build/
+/.tmp/
+/app/release/
+*.apk
+*.aab
+*.zip
+
+# 备份与临时文件
+*.bak
+*.tmp
+*.orig
+*~
+
+# 内部交接文档（含本机签名密码、局域网地址）
+/HANDOFF.md
+/PHASE3_HANDOFF.md
+/BUGFIX_BRIEF.md
+/UI_COPY_BACKUP.md
+
+# 签名密钥和密码：绝不提交
+*.jks
+*.keystore
+*.p12
+keystore.properties
+local.properties

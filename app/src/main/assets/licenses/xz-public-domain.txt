@@ -1,0 +1,10 @@
+XZ for Java is in the public domain.
+
+It was originally written by Lasse Collin and Igor Pavlov, with contributions
+from others. The upstream project is available at:
+
+https://tukaani.org/xz/java.html
+
+There is no warranty, express or implied, for this software. To the extent
+permitted by law, the authors disclaim all liability for any damages arising
+from its use.

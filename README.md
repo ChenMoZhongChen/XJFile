@@ -1,0 +1,237 @@
+# XJ File
+
+一个面向 Android 的双栏文件管理器：本地存储、SMB、SFTP、光驱/CD、内置媒体播放器和文本编辑器在同一个应用里。
+
+![Platform](https://img.shields.io/badge/Android-10%2B-3DDC84?logo=android&logoColor=white)
+![Kotlin](https://img.shields.io/badge/Kotlin-2.0.21-7F52FF?logo=kotlin&logoColor=white)
+![Compose](https://img.shields.io/badge/Jetpack%20Compose-2024.02.01-4285F4?logo=jetpackcompose&logoColor=white)
+![License](https://img.shields.io/badge/License-MIT-yellow.svg)
+
+> 当前版本：`5.9.9.17128076`  
+> 包名：`com.cmzc.xj_file.app`  
+> 最低系统：Android 10（API 29）  
+> 目标 SDK：34
+
+---
+
+## 功能
+
+### 双栏文件管理
+
+- 本地存储、SMB、SFTP 统一浏览；
+- 左右两栏独立导航、前进/后退/上级/刷新/路径跳转；
+- 复制、移动、删除、重命名、新建文件/文件夹、属性、分享；
+- 横滑多选、长按操作菜单、全选、复制路径；
+- 最近路径、快捷目录、常用文件夹；
+- 传输任务抽屉：批次进度、暂停/恢复/取消、完成校验；
+- 冲突处理：覆盖、跳过、重命名、保留两者；
+- 支持断点续传。
+
+### 光驱、CD 与 M-DISC
+
+- 光驱卷标、容量、介质类型识别；
+- 音频 CD 读取 TOC，按扇区数计算每轨时长；
+- 音频 CD 播放，支持后台播放；
+- **仅音频 CD 自动切轨**，普通音频播完不会自动切；
+- DVD Video 检测；
+- M-DISC（千年盘）识别；
+- 光驱探测按盘并行并设置超时，空光驱不会拖垮整个磁盘列表。
+
+### 查看器
+
+- 视频/音频播放器（Media3 ExoPlayer）；
+- 后台音频：前台服务 + MediaSession + 通知栏控制；
+- 图片查看器、相册网格、图片/视频混排；
+- 音频页复用 CD 页布局，播放列表为当前文件夹全部音频；
+- 视频页底部缩略图条。
+
+### 文本编辑器
+
+- 编码识别：BOM 优先 + ICU4J + 严格 UTF-8 校验；
+- 支持 UTF-8/UTF-16/UTF-32、GBK/GB18030、BIG5、日文、韩文、西文等；
+- 保留原始 BOM 和换行风格（LF/CRLF/CR）；
+- 行号、查找/替换、未保存确认、编码切换、保存；
+- 已知文本后缀 + **未知后缀默认按文本打开**；
+- 长按「打开方式」可重新选择文本编辑器 / 系统应用；
+- Office/PDF、常见二进制、音视频/图片不会误入文本编辑器；
+- 远程文本读入内存，不落缓存；保存失败落 `Download/XjFile`；
+- 语法高亮覆盖 C/C++/C#/Java/Kotlin/Python、HTML/XML/XSL、JavaScript/TypeScript、JSON、CSS、Shell 等。
+
+### 压缩
+
+- 长按多选/单选 →「压缩」→ 独立参数面板；
+- 压缩包名称、类型、级别（仅存储 / 快速 / 标准 / 极限）；
+- 明细区显示数量、文件合计大小、输出目录、层级保留说明；
+- 类型：ZIP、ZIPX、TAR、TGZ、LZH、7Z、GZ、XZ、ZPAQ、RAR；
+- 实际可创建：ZIP、ZIPX、TAR、TGZ、7Z、GZ、XZ；
+- GZ/XZ 仅支持单文件；多文件请用 TAR/TGZ；
+- LZH、ZPAQ、RAR 暂为无功能占位；
+- 本地/远程都可输出；远程压缩包先在本机 cache 生成再上传，避免 SFTP 读写抢车道。
+
+---
+
+## 下载与安装
+
+推荐从 GitHub Releases 下载最新 APK：
+
+> **Releases** 页面 → 下载 `xj-file-*.apk`
+
+也可以自行构建，见下方「构建」。
+
+安装后需要授予「所有文件访问」权限，否则无法浏览本地存储。应用还使用：
+
+- `MANAGE_EXTERNAL_STORAGE`：本地文件管理；
+- `FOREGROUND_SERVICE` / `FOREGROUND_SERVICE_DATA_SYNC`：后台传输；
+- `FOREGROUND_SERVICE_MEDIA_PLAYBACK`：后台音频播放；
+- `POST_NOTIFICATIONS`：传输进度和播放控制通知；
+- `WAKE_LOCK`：传输期间保持 CPU/WiFi。
+
+> 本应用主要面向自用和侧载，未针对 Google Play 的存储权限政策做上架适配。
+
+---
+
+## 构建
+
+### 环境
+
+- JDK 17
+- Android SDK Platform 34
+- Android Build Tools
+- Windows / macOS / Linux 均可
+
+### 命令
+
+Windows：
+
+```bat
+gradlew.bat --no-watch-fs assembleDebug
+```
+
+macOS / Linux：
+
+```bash
+./gradlew assembleDebug
+```
+
+生成的 APK：
+
+```text
+app/build/outputs/apk/debug/app-debug.apk
+```
+
+签名 Release：
+
+```bat
+gradlew.bat --no-watch-fs assembleRelease
+```
+
+输出：
+
+```text
+app/build/outputs/apk/release/app-release.apk
+```
+
+Windows 上建议保留 `--no-watch-fs`：Gradle 文件系统监听在某些机器上会卡在
+`PosixFileSystemFunctions.listFileSystems` 扫描盘符。
+
+Release 构建需要自己的签名配置；不要把密钥库和密码提交到仓库。
+
+---
+
+## 技术栈
+
+| 用途 | 技术 |
+|---|---|
+| 语言 / UI | Kotlin、Jetpack Compose、Material 3 |
+| 本地/远程文件 | LocalFileSystem、SMBJ、JSch (SFTP)、jcifs-ng |
+| 传输 | 自研 TransferManager，前台服务 + 断点续传 |
+| 媒体 | AndroidX Media3 / ExoPlayer |
+| 文本编码 | ICU4J |
+| 压缩 | JDK ZIP + Apache Commons Compress + XZ for Java |
+| 图片 | Android ImageDecoder、AndroidSVG、TIFF/ICO/RAW 预览 |
+
+### 代码结构
+
+```text
+app/src/main/java/com/cmzc/xj_file/app/
+├─ vm/MainViewModel.kt            # 双栏状态、查看器、文本编辑、压缩、传输
+├─ core/
+│  ├─ fs/                         # 本地 / SMB / SFTP
+│  ├─ transfer/                   # 传输、断点、冲突
+│  ├─ playback/                   # Media3、前台播放服务、媒体源
+│  ├─ text/                       # 编码内核、文本类型
+│  ├─ archive/                    # 压缩格式与写入器
+│  ├─ disk/                       # 光驱 / 磁盘探测
+│  └─ cd/                         # CD TOC、WAV/PCM
+├─ ui/
+│  ├─ MainScreen.kt               # 主界面
+│  ├─ components/                 # 文件栏、任务抽屉、缩略图条
+│  ├─ editor/                     # 文本编辑与语法高亮
+│  ├─ player/                     # 视频/音频播放页
+│  ├─ gallery/                    # 相册网格
+│  └─ settings/                   # 设置、开源声明、许可证详情
+└─ assets/pc/                     # PC 侧磁盘/光驱/M-DISC 探测脚本
+```
+
+---
+
+## 已知限制
+
+- **Office / PDF 不内置渲染**：doc、docx、xls、xlsx、ppt、pptx、pdf 仍交系统应用；
+- **解压 / 压缩包浏览**：当前只能创建压缩包，不能点进压缩包浏览或解压；
+- **RAR / LZH / ZPAQ 创建**：选项保留，但暂不可用；
+- **超大文本编辑器**：文本上限 2MB；约 2 万字符以上时，Compose 可能不再显示语法高亮；
+- **远程文本保存**：直接覆盖，没有 mtime/size 冲突检测；失败才落本地；
+- **传输任务持久化**：进程被系统杀掉后，进行中的传输不会恢复；
+- **CD 自动切轨**：当前测试机没有音频 CD，真实盘未复测；
+- **APK 体积**：包含 ICU4J、Media3、压缩库，体积约 88 MB。
+
+---
+
+## 许可证
+
+XJ File **自身代码**使用 [MIT License](LICENSE) 发布。
+
+Copyright (c) 2026 XJoffice ChenMoZhongChen
+
+第三方组件仍归各自版权人所有，并继续适用其原始许可证，**不会因为本项目采用 MIT 而被重新授权**。详见：
+
+- [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)
+- 应用内「设置 → 关于 → 开源软件声明」；
+- APK 内 `assets/licenses/` 下的许可证全文。
+
+### 特别说明：jcifs-ng
+
+`jcifs-ng` 使用 **LGPL-2.1**，是当前唯一的非宽松依赖。它用于 SMB 共享枚举。
+
+本项目按 LGPL-2.1 提供：
+
+- `assets/licenses/lgpl-2.1.txt` 完整许可证；
+- jcifs-ng 版权与许可证声明；
+- `assets/licenses/sources/jcifs-ng-2.1.10-sources.jar` 完整对应源码；
+- `assets/licenses/sources/XJFile-5.9.9.17128076-source.zip` 应用自身源码包；
+- `assets/licenses/THIRD_PARTY_NOTICES.txt` 第三方 NOTICE 汇总；
+- 应用内详情页「导出源码到 Download」；
+- 上游源码地址：<https://github.com/AGNO3/jcifs-ng>
+
+若你分发包含 jcifs-ng 的 APK，请同时遵守 LGPL-2.1 的源码与重新链接要求。
+如果希望发行物只包含宽松许可证依赖，应移除或替换 jcifs-ng。
+
+---
+
+## 贡献
+
+欢迎提交 Issue 和 Pull Request。
+
+- 请保持现有双栏 / 文件系统抽象，不要在 UI 层直接拼协议；
+- 修改前先看 [PROJECT_SUMMARY.md](PROJECT_SUMMARY.md)；
+- 涉及第三方依赖或许可证时，同步更新 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)；
+- 不要提交签名密钥、密码、个人服务器地址或测试账号。
+
+---
+
+## 致谢
+
+感谢 AndroidX、Jetpack Compose、Media3、JSch、SMBJ、jcifs-ng、Bouncy Castle、ICU4J、Apache Commons Compress、XZ for Java、AndroidSVG、Kotlin、Gradle 等开源项目的作者与贡献者。
+
+本项目与 7-Zip、WinRAR、WinZip 等产品无隶属关系；文中出现的格式名称仅用于说明兼容性。

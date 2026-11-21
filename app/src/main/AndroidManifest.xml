@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+
+    <!-- 传输前台服务：切后台/锁屏不被回收。targetSdk 34 起 type + 对应权限缺一不可，否则启动即崩 -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <!-- Android 13+ 通知栏需要运行时权限（不给也能传，只是看不到进度通知） -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- 后台保活：传输期间 CPU 别睡、WiFi 别省电；以及申请「忽略电池优化」 -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
+    <!-- 音频后台播放前台服务：targetSdk 34 起 mediaPlayback 类型必须有对应权限，否则启动即崩 -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+
+    <!-- 全盘文件访问（自用 App，不上架） -->
+    <uses-permission
+        android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
+        tools:ignore="ScopedStorage" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="29" />
+
+    <application
+        android:name=".XjFileApp"
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:label="@string/app_name"
+        android:requestLegacyExternalStorage="true"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.XjFile"
+        tools:targetApi="34">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:windowSoftInputMode="adjustResize"
+            android:configChanges="orientation|screenSize|keyboardHidden">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".SettingsActivity"
+            android:exported="false"
+            android:label="设置" />
+
+        <!-- 彩蛋页：设置标题连点 15 下才能进，不对外暴露（adb 也起不来） -->
+        <activity
+            android:name=".ui.debug.DriveIconPreviewActivity"
+            android:exported="false"
+            android:label="图标预览" />
+
+        <!-- ★ 5A 开发预览入口（不是用户功能）：验收时用 adb 临时开过 exported，
+             现在已改回 false，避免把编辑器样例页暴露给外部；5B 接入文件列表后可以删掉。 -->
+        <activity
+            android:name=".ui.editor.TextEditorPreviewActivity"
+            android:exported="false"
+            android:label="编辑器预览" />
+
+        <!-- 传输期间的前台服务（只做续命 + 通知展示，传输仍在 TransferManager 里跑） -->
+        <service
+            android:name=".core.transfer.TransferService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+        <!-- 音频播放期间的前台服务（播放器在 PlaybackEngine，服务只续命 + 通知/锁屏控制） -->
+        <service
+            android:name=".core.playback.PlaybackService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
+
+        <!-- 通知栏「暂停/恢复」「取消全部」动作 -->
+        <receiver
+            android:name=".core.transfer.TransferActionReceiver"
+            android:exported="false" />
+
+        <!-- 播放通知上的「播放/暂停」「停止」动作 -->
+        <receiver
+            android:name=".core.playback.PlaybackActionReceiver"
+            android:exported="false" />
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+    </application>
+</manifest>
