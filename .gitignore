@@ -22,7 +22,9 @@
 /app/release/
 *.apk
 *.aab
-*.zip
+
+# 许可证材料里的源码包必须提交（LGPL 合规），不要被 *.zip 忽略
+!app/src/main/assets/licenses/sources/*.zip
 
 # 备份与临时文件
 *.bak
