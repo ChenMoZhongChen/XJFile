@@ -1,5 +1,11 @@
 # XJ File（新金文件管理器）
 
+<a id="zh-cn"></a>
+
+[查看简体中文版本](#zh-cn)
+
+[View English Version](#en-us)
+
 一个 Android 双栏文件管理器，可浏览和修改本地存储、SMB、SFTP，可读取 CD、DVD、BD 与 M-DISC，并内置媒体播放器和文本编辑器。
 
 ![Platform](https://img.shields.io/badge/Android-10%2B-3DDC84?logo=android&logoColor=white)
@@ -248,3 +254,260 @@ Copyright (c) 2026 XJoffice ChenMoZhongChen
 感谢 AndroidX、Jetpack Compose、Media3、JSch、SMBJ、jcifs-ng、Bouncy Castle、ICU4J、Apache Commons Compress、XZ for Java、AndroidSVG、Kotlin、Gradle 等开源项目的作者与贡献者。
 
 本项目与 7-Zip、WinRAR、WinZip 等产品无隶属关系；文中出现的格式名称仅用于说明兼容性。
+
+---
+
+<a id="en-us"></a>
+
+> 英语翻译来自 DeepSeek。
+
+# XJ File (Xinjin File Manager)
+
+[View Chinese Version](#zh-cn)
+
+An Android dual-pane file manager for browsing and modifying local storage, SMB, and SFTP, reading CD, DVD, BD, and M-DISC optical discs, with a built-in media player and text editor.
+
+![Platform](https://img.shields.io/badge/Android-10%2B-3DDC84?logo=android&logoColor=white)
+![Kotlin](https://img.shields.io/badge/Kotlin-2.0.21-7F52FF?logo=kotlin&logoColor=white)
+![Compose](https://img.shields.io/badge/Jetpack%20Compose-2024.02.01-4285F4?logo=jetpackcompose&logoColor=white)
+![License](https://img.shields.io/badge/License-MIT-yellow.svg)
+
+> Current version: `5.9.9.17128712`  
+> Build version: `5.9.9.17128076` (the version actually written into the APK; file names or release numbers may differ)  
+> Package name: `com.cmzc.xj_file.app`  
+> Minimum system: Android 10 (API 29)  
+> Target SDK: 34
+
+---
+
+## Features
+
+### Dual-pane file management
+
+- Browse and modify files on local storage, SMB, and SFTP;
+- Independent navigation in the left and right panes: forward, back, up, refresh, and path jump;
+- Copy, move, delete, rename, create files/folders, properties, and share;
+- Horizontal-swipe multi-select, long-press action menu, select all, and copy path;
+- Recent paths, shortcut folders, and frequently used folders;
+- Transfer-task drawer: batch progress, pause/resume/cancel, and completion verification;
+- Conflict handling: overwrite, skip, rename, or keep both;
+- Resumable transfers.
+
+### CD, DVD, BD, and M-DISC (remote optical-disc detection over SFTP)
+
+- Disc label, capacity, and media-type detection;
+- Reads the table of contents (TOC) of audio CDs and calculates each track's duration from its sector count;
+- Audio CD playback with background support;
+- DVD/BD video detection;
+- M-DISC detection;
+- Optical-disc probing runs in parallel for each drive and uses timeouts, so a drive with no disc does not stall the entire disk list.
+
+### Viewers
+
+- Video/audio player (Media3 ExoPlayer);
+- Background audio: foreground service + MediaSession + notification controls;
+- Image viewer, gallery grid, and mixed image/video browsing;
+- The audio screen reuses the CD page layout; the playlist contains all audio files in the current folder;
+- Thumbnail strip at the bottom of the video screen.
+
+### Text editor
+
+- Encoding detection: BOM first, then ICU4J, with strict UTF-8 validation;
+- Supports UTF-8, UTF-16, UTF-32, GB18030, BIG5, Shift_JIS, EUC-JP, EUC-KR, Windows-1252, and ISO-8859-1;
+- Preserves the original BOM and line-ending style (LF / CRLF / CR);
+- Line numbers, find/replace, unsaved-changes confirmation, encoding switching, and saving;
+- Files with known text extensions open in the editor; unknown extensions are treated as text by default;
+- Long-press "Open with" to choose the text editor or a system app again;
+- Office documents and PDF files, common binary formats, audio/video, and images do not open in the text editor by mistake;
+- Remote text is read into memory without a cache file; if saving fails, it falls back to `Download/XjFile`;
+- Syntax highlighting covers C/C++/C#/Java/Kotlin/Python, HTML/XML/XSL, JavaScript/TypeScript, JSON, CSS, Shell, and more.
+
+### Compression
+
+- Long-press one or more items → "Compress" → dedicated options panel;
+- Archive name, type, and compression level (Store / Fast / Standard / Ultra);
+- Details show item count, total size, output directory, and hierarchy-preservation notes;
+- Types: ZIP, ZIPX, TAR, TGZ, LZH, 7Z, GZ, XZ, ZPAQ, RAR;
+- Currently creatable: ZIP, ZIPX, TAR, TGZ, 7Z, GZ, XZ;
+- GZ/XZ support single files only; use TAR/TGZ for multiple files;
+- LZH, ZPAQ, and RAR are placeholders without working compression;
+- Output works locally and remotely; a remote archive is first created in the local cache and then uploaded, so SFTP reads and writes do not compete;
+- **Extraction and archive preview are planned for a future release.**
+
+---
+
+## Download and installation
+
+The latest APK is available from GitHub Releases:
+
+**https://github.com/ChenMoZhongChen/XJFile/releases**
+
+You can also build it yourself; see "Build" below.
+
+After installation, grant "All files access"; otherwise local storage cannot be browsed. The app also uses:
+
+- `MANAGE_EXTERNAL_STORAGE`: local file management;
+- `FOREGROUND_SERVICE` / `FOREGROUND_SERVICE_DATA_SYNC`: background transfers;
+- `FOREGROUND_SERVICE_MEDIA_PLAYBACK`: background audio playback;
+- `POST_NOTIFICATIONS`: transfer progress and playback-control notifications;
+- `WAKE_LOCK`: keeps the CPU/Wi-Fi active during transfers.
+
+---
+
+## Build
+
+### Requirements
+
+- JDK 17
+- Android SDK Platform 34
+- Android Build Tools
+- Windows, macOS, or Linux
+
+### Commands
+
+Windows:
+
+```bat
+gradlew.bat --no-watch-fs assembleDebug
+```
+
+macOS / Linux:
+
+```bash
+./gradlew assembleDebug
+```
+
+Generated APK:
+
+```text
+app/build/outputs/apk/debug/app-debug.apk
+```
+
+Signed release:
+
+```bat
+gradlew.bat --no-watch-fs assembleRelease
+```
+
+Output:
+
+```text
+app/build/outputs/apk/release/app-release.apk
+```
+
+On Windows, keeping `--no-watch-fs` is recommended: Gradle's file-system watcher can otherwise hang while scanning drive letters in `PosixFileSystemFunctions.listFileSystems`.
+
+A release build needs your own signing configuration; do not commit the keystore or passwords to the repository.
+
+---
+
+## Tech stack
+
+| Purpose | Technology |
+|---|---|
+| Language / UI | Kotlin, Jetpack Compose, Material 3 |
+| Local/remote files | LocalFileSystem, SMBJ, JSch (SFTP), jcifs-ng |
+| Transfers | Custom TransferManager, foreground service + resumable transfers |
+| Media | AndroidX Media3 / ExoPlayer |
+| Text encoding | ICU4J |
+| Compression | JDK ZIP + Apache Commons Compress + XZ for Java |
+| Images | Android ImageDecoder, AndroidSVG, TIFF/ICO/RAW preview |
+
+### Code structure
+
+```text
+app/src/main/java/com/cmzc/xj_file/app/
+├─ vm/MainViewModel.kt            # dual-pane state, viewers, text editor, compression, transfers
+├─ core/
+│  ├─ fs/                         # local / SMB / SFTP
+│  ├─ transfer/                   # transfers, resume, conflicts
+│  ├─ playback/                   # Media3, foreground playback service, media sources
+│  ├─ text/                       # encoding core, text types
+│  ├─ archive/                    # archive formats and writers
+│  ├─ disk/                       # disc / disk probing
+│  └─ cd/                         # CD TOC, WAV/PCM
+├─ ui/
+│  ├─ MainScreen.kt               # main screen
+│  ├─ components/                 # file panes, task drawer, thumbnail strip
+│  ├─ editor/                     # text editor and syntax highlighting
+│  ├─ player/                     # video/audio player screens
+│  ├─ gallery/                    # gallery grid
+│  └─ settings/                   # settings, open-source notices, license details
+└─ assets/pc/                     # PC-side disk/disc/M-DISC probe scripts
+```
+
+---
+
+## Known limitations
+
+- **No built-in rendering for Office documents and PDF files:** doc, docx, xls, xlsx, ppt, pptx, and pdf files are handed off to system apps;
+- **Extraction / archive browsing:** archives can be created but not opened or extracted;
+- **RAR / LZH / ZPAQ creation:** the options are present but not functional yet;
+- **Very large text files:** the text limit is 2 MB; above roughly 20K characters, Compose may stop showing syntax highlighting;
+- **Remote text saving:** files are overwritten directly without mtime/size conflict detection; a failed save falls back to local storage;
+- **Transfer persistence:** in-progress transfers do not resume after the system kills the process.
+
+---
+
+## Future roadmap
+
+> **The following features are planned for future releases and are not part of 5.9.9:**
+>
+> - **Built-in PDF rendering:** planned for a future release.
+> - **Extraction and archive preview:** planned for a future release.
+> - **Very large text files:** the editor will be adjusted in a future release.
+
+---
+
+## License
+
+XJ File's **own code** is released under the [MIT License](LICENSE).
+
+Copyright (c) 2026 XJoffice ChenMoZhongChen
+
+### Logo and brand graphics exception
+
+<img src="app/src/main/res/drawable/xj.png" alt="Xinjin File Manager logo" width="120">
+
+The "Xinjin File Manager / XJ File" application icon, logo, and related brand graphics in this repository are **not included in the MIT License grant**. Their copyright belongs to XJoffice ChenMoZhongChen. Without written permission, they may not be used as icons, branding, promotional material, or derivative artwork for other projects; they are intended only to identify this project and its official distributions.
+
+Third-party components remain the property of their respective copyright holders and continue to be governed by their original licenses. They are **not re-licensed because this project uses the MIT License**. See:
+
+- [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)
+- In the app: "Settings → About → Open-source notices";
+- The full license texts under `assets/licenses/` in the APK.
+
+### jcifs-ng
+
+`jcifs-ng` is licensed under **LGPL-2.1** and is currently the only non-permissive dependency. It is used for SMB share enumeration.
+
+This project provides the following under LGPL-2.1:
+
+- The full license at `assets/licenses/lgpl-2.1.txt`;
+- The jcifs-ng copyright and license notices;
+- The complete corresponding source at `assets/licenses/sources/jcifs-ng-2.1.10-sources.jar`;
+- The application source package at `assets/licenses/sources/XJFile-5.9.9.17128076-source.zip`;
+- The third-party NOTICE summary at `assets/licenses/THIRD_PARTY_NOTICES.txt`;
+- An in-app "Export source to Download" action;
+- Upstream source: <https://github.com/AGNO3/jcifs-ng>
+
+If you distribute an APK containing jcifs-ng, you must also comply with LGPL-2.1's source and relinking requirements. If you want a distribution containing only permissive dependencies, remove or replace jcifs-ng.
+
+---
+
+## Contributing
+
+Issues and pull requests are welcome.
+
+- Keep the existing dual-pane / file-system abstraction; do not implement protocol handling directly in the UI layer;
+- Read [CONTRIBUTING.md](CONTRIBUTING.md) (currently in Chinese) before making changes;
+- When adding third-party dependencies or licenses, update [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) as well;
+- Do not commit signing keys, passwords, personal server addresses, or test accounts.
+
+---
+
+## Acknowledgements
+
+Thanks to the authors and contributors of AndroidX, Jetpack Compose, Media3, JSch, SMBJ, jcifs-ng, Bouncy Castle, ICU4J, Apache Commons Compress, XZ for Java, AndroidSVG, Kotlin, Gradle, and other open-source projects.
+
+This project is not affiliated with 7-Zip, WinRAR, WinZip, or similar products; format names are used only to describe compatibility.
