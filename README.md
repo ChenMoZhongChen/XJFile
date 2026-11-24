@@ -1,13 +1,14 @@
-# XJ File
+# XJ File（新金文件管理器）
 
-一个面向 Android 的双栏文件管理器：本地存储、SMB、SFTP、光驱/CD、内置媒体播放器和文本编辑器在同一个应用里。
+一个 Android 双栏文件管理器，可浏览和修改本地存储、SMB、SFTP，可读取 CD、DVD、BD 与 M-DISC，并内置媒体播放器和文本编辑器。
 
 ![Platform](https://img.shields.io/badge/Android-10%2B-3DDC84?logo=android&logoColor=white)
 ![Kotlin](https://img.shields.io/badge/Kotlin-2.0.21-7F52FF?logo=kotlin&logoColor=white)
 ![Compose](https://img.shields.io/badge/Jetpack%20Compose-2024.02.01-4285F4?logo=jetpackcompose&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
 
-> 当前版本：`5.9.9.17128076`  
+> 当前版本：`5.9.9.17128712`  
+> 构建版本：`5.9.9.17128076`（APK 内实际版本；文件名/发布号可能不同）  
 > 包名：`com.cmzc.xj_file.app`  
 > 最低系统：Android 10（API 29）  
 > 目标 SDK：34
@@ -18,7 +19,7 @@
 
 ### 双栏文件管理
 
-- 本地存储、SMB、SFTP 统一浏览；
+- 统一浏览和修改本地存储、SMB、SFTP；
 - 左右两栏独立导航、前进/后退/上级/刷新/路径跳转；
 - 复制、移动、删除、重命名、新建文件/文件夹、属性、分享；
 - 横滑多选、长按操作菜单、全选、复制路径；
@@ -27,15 +28,14 @@
 - 冲突处理：覆盖、跳过、重命名、保留两者；
 - 支持断点续传。
 
-### 光驱、CD 与 M-DISC
+### CD、DVD、BD 与 M-DISC（基于 SFTP 连接的远程介质探测）
 
-- 光驱卷标、容量、介质类型识别；
+- 光盘卷标、容量、介质类型识别；
 - 音频 CD 读取 TOC，按扇区数计算每轨时长；
 - 音频 CD 播放，支持后台播放；
-- **仅音频 CD 自动切轨**，普通音频播完不会自动切；
-- DVD Video 检测；
-- M-DISC（千年盘）识别；
-- 光驱探测按盘并行并设置超时，空光驱不会拖垮整个磁盘列表。
+- DVD / BD 视频检测；
+- M-DISC 识别；
+- 光盘探测按盘并行并设置超时，空驱动器不会拖垮整个磁盘列表。
 
 ### 查看器
 
@@ -48,12 +48,12 @@
 ### 文本编辑器
 
 - 编码识别：BOM 优先 + ICU4J + 严格 UTF-8 校验；
-- 支持 UTF-8/UTF-16/UTF-32、GBK/GB18030、BIG5、日文、韩文、西文等；
-- 保留原始 BOM 和换行风格（LF/CRLF/CR）；
+- 支持 UTF-8、UTF-16、UTF-32、GB18030、BIG5、Shift_JIS、EUC-JP、EUC-KR、Windows-1252、ISO-8859-1；
+- 保留原始 BOM 和换行风格（LF / CR LF / CR）；
 - 行号、查找/替换、未保存确认、编码切换、保存；
 - 已知文本后缀 + **未知后缀默认按文本打开**；
 - 长按「打开方式」可重新选择文本编辑器 / 系统应用；
-- Office/PDF、常见二进制、音视频/图片不会误入文本编辑器；
+- Office 系列（含 PDF）、常见二进制、音视频/图片不会误入文本编辑器；
 - 远程文本读入内存，不落缓存；保存失败落 `Download/XjFile`；
 - 语法高亮覆盖 C/C++/C#/Java/Kotlin/Python、HTML/XML/XSL、JavaScript/TypeScript、JSON、CSS、Shell 等。
 
@@ -66,7 +66,8 @@
 - 实际可创建：ZIP、ZIPX、TAR、TGZ、7Z、GZ、XZ；
 - GZ/XZ 仅支持单文件；多文件请用 TAR/TGZ；
 - LZH、ZPAQ、RAR 暂为无功能占位；
-- 本地/远程都可输出；远程压缩包先在本机 cache 生成再上传，避免 SFTP 读写抢车道。
+- 本地/远程都可输出；远程压缩包先在本机 cache 生成再上传，避免 SFTP 读写抢车道；
+- **解压缩与预览压缩包将在后续版本实现。**
 
 ---
 
@@ -74,7 +75,7 @@
 
 推荐从 GitHub Releases 下载最新 APK：
 
-> **Releases** 页面 → 下载 `xj-file-*.apk`
+**https://github.com/ChenMoZhongChen/XJFile/releases**
 
 也可以自行构建，见下方「构建」。
 
@@ -85,8 +86,6 @@
 - `FOREGROUND_SERVICE_MEDIA_PLAYBACK`：后台音频播放；
 - `POST_NOTIFICATIONS`：传输进度和播放控制通知；
 - `WAKE_LOCK`：传输期间保持 CPU/WiFi。
-
-> 本应用主要面向自用和侧载，未针对 Google Play 的存储权限政策做上架适配。
 
 ---
 
@@ -161,7 +160,7 @@ app/src/main/java/com/cmzc/xj_file/app/
 │  ├─ playback/                   # Media3、前台播放服务、媒体源
 │  ├─ text/                       # 编码内核、文本类型
 │  ├─ archive/                    # 压缩格式与写入器
-│  ├─ disk/                       # 光驱 / 磁盘探测
+│  ├─ disk/                       # 光盘 / 磁盘探测
 │  └─ cd/                         # CD TOC、WAV/PCM
 ├─ ui/
 │  ├─ MainScreen.kt               # 主界面
@@ -170,21 +169,29 @@ app/src/main/java/com/cmzc/xj_file/app/
 │  ├─ player/                     # 视频/音频播放页
 │  ├─ gallery/                    # 相册网格
 │  └─ settings/                   # 设置、开源声明、许可证详情
-└─ assets/pc/                     # PC 侧磁盘/光驱/M-DISC 探测脚本
+└─ assets/pc/                     # PC 侧磁盘/光盘/M-DISC 探测脚本
 ```
 
 ---
 
 ## 已知限制
 
-- **Office / PDF 不内置渲染**：doc、docx、xls、xlsx、ppt、pptx、pdf 仍交系统应用；
+- **Office 系列（含 PDF）不内置渲染**：doc、docx、xls、xlsx、ppt、pptx、pdf 仍交系统应用；
 - **解压 / 压缩包浏览**：当前只能创建压缩包，不能点进压缩包浏览或解压；
 - **RAR / LZH / ZPAQ 创建**：选项保留，但暂不可用；
 - **超大文本编辑器**：文本上限 2MB；约 2 万字符以上时，Compose 可能不再显示语法高亮；
 - **远程文本保存**：直接覆盖，没有 mtime/size 冲突检测；失败才落本地；
-- **传输任务持久化**：进程被系统杀掉后，进行中的传输不会恢复；
-- **CD 自动切轨**：当前测试机没有音频 CD，真实盘未复测；
-- **APK 体积**：包含 ICU4J、Media3、压缩库，体积约 88 MB。
+- **传输任务持久化**：进程被系统杀掉后，进行中的传输不会恢复。
+
+---
+
+## 后续版本计划
+
+> **以下功能已列入后续版本，不在当前 5.9.9 中：**
+>
+> - **PDF 内置渲染**：将在后续版本实现。
+> - **解压缩与压缩包预览**：将在后续版本实现。
+> - **超大文本编辑器**：将在后续版本有所调整。
 
 ---
 
@@ -194,7 +201,13 @@ XJ File **自身代码**使用 [MIT License](LICENSE) 发布。
 
 Copyright (c) 2026 XJoffice ChenMoZhongChen
 
-第三方组件仍归各自版权人所有，并继续适用其原始许可证，**不会因为本项目采用 MIT 而被重新授权**。详见：
+### Logo 与品牌图形例外
+
+<img src="app/src/main/res/drawable/xj.png" alt="新金文件管理器 Logo" width="120">
+
+本仓库中的「新金文件管理器 / XJ File」应用图标、Logo 及相关品牌图形**不包含在 MIT License 的授权范围内**，版权归 XJoffice ChenMoZhongChen 所有。未经书面许可，不得将这些图形用于其他项目的图标、品牌、宣传或衍生作品；它们仅用于标识本项目及其官方发行版。
+
+第三方组件仍归各自版权人所有，并继续适用其原始许可证，**不因本项目采用 MIT 而被重新授权**。详见：
 
 - [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)
 - 应用内「设置 → 关于 → 开源软件声明」；
@@ -224,7 +237,7 @@ Copyright (c) 2026 XJoffice ChenMoZhongChen
 欢迎提交 Issue 和 Pull Request。
 
 - 请保持现有双栏 / 文件系统抽象，不要在 UI 层直接拼协议；
-- 修改前先看 [PROJECT_SUMMARY.md](PROJECT_SUMMARY.md)；
+- 修改前先看 [CONTRIBUTING.md](CONTRIBUTING.md)；
 - 涉及第三方依赖或许可证时，同步更新 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)；
 - 不要提交签名密钥、密码、个人服务器地址或测试账号。
 
