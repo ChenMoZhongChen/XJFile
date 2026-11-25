@@ -52,6 +52,12 @@ data class DriveInfo(
     val videoTs: Boolean = false,
     /** TOC 判定：所有音轨都是音频轨。比卷标 "Audio CD" 可靠（数据 CD 也可能叫这名）。 */
     val audioCd: Boolean = false,
+    /** Explorer 已明确识别为音频 CD：不再跑会挂住的 raw SCSI。 */
+    val shellAudio: Boolean = false,
+    /** Explorer 已明确显示为空光驱：不再跑会挂住的 raw SCSI。 */
+    val shellEmpty: Boolean = false,
+    /** Explorer 已经通过卷大小/名称确认了介质，跳过后续 raw SCSI 探测。 */
+    val shellMedia: Boolean = false,
     /** 音频 CD 的音轨表（由 PC 侧 READ_TOC_EX 读出）。非音频 CD 为空。 */
     val tracks: List<CdTrack> = emptyList(),
 ) {

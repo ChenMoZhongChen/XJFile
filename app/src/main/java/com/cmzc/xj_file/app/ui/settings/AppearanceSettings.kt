@@ -108,6 +108,7 @@ fun ExperimentalPage() {
     val pullRefresh by AppSettings.pullToRefresh.collectAsStateWithLifecycle()
     val m3Palette by AppSettings.m3Palette.collectAsStateWithLifecycle()
     val mediaIsolation by AppSettings.mediaIsolation.collectAsStateWithLifecycle()
+    val fileIconColors by AppSettings.fileIconColors.collectAsStateWithLifecycle()
 
     Column(
         modifier = Modifier
@@ -137,6 +138,13 @@ fun ExperimentalPage() {
                 "打开后缩略图条会把两种类型一起列出来，可以直接跨类型挑选。翻页始终只在同类之间进行。默认关闭。",
             checked = !mediaIsolation,
             onCheckedChange = { AppSettings.setMediaIsolation(!it) }
+        )
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+        SwitchRow(
+            title = "文件图标颜色",
+            subtitle = "打开后按文件类型显示彩色图标；关闭后统一使用灰白色图标。默认打开。",
+            checked = fileIconColors,
+            onCheckedChange = { AppSettings.setFileIconColors(it) }
         )
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         Spacer(Modifier.height(16.dp))

@@ -29,7 +29,7 @@ public static class XjScsi2 {
             var spt = new SPT();
             spt.Length = (ushort)sptSize; spt.CdbLength = (byte)cdb.Length;
             spt.SenseInfoLength = 24; spt.DataIn = 1;
-            spt.DataTransferLength = (uint)dataLen; spt.TimeOutValue = 5;
+            spt.DataTransferLength = (uint)dataLen; spt.TimeOutValue = 15;
             spt.DataBuffer = data; spt.SenseInfoOffset = (uint)sptSize;
             spt.Cdb = new byte[16]; Array.Copy(cdb, spt.Cdb, cdb.Length);
             int bufLen = sptSize + 24;

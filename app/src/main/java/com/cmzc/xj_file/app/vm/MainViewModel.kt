@@ -1,6 +1,7 @@
 package com.cmzc.xj_file.app.vm
 
 import android.app.Application
+import android.graphics.Bitmap
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.cmzc.xj_file.app.core.fs.LocalFileSystem
@@ -10,12 +11,21 @@ import com.cmzc.xj_file.app.core.fs.RemoteFileSystem
 import com.cmzc.xj_file.app.core.fs.SftpFileSystem
 import com.cmzc.xj_file.app.core.fs.SmbFileSystem
 import com.cmzc.xj_file.app.core.cd.WavHeader
+import com.cmzc.xj_file.app.core.archive.ArchiveExtractor
+import com.cmzc.xj_file.app.core.archive.ArchiveEntryInfo
+import com.cmzc.xj_file.app.core.archive.ArchiveFormats
+import com.cmzc.xj_file.app.core.archive.ArchiveReader
 import com.cmzc.xj_file.app.core.archive.ArchiveWriter
 import com.cmzc.xj_file.app.core.archive.CompressRequest
+import com.cmzc.xj_file.app.core.archive.UnsupportedArchiveException
 import com.cmzc.xj_file.app.core.disk.DriveProbe
 import com.cmzc.xj_file.app.core.disk.DriveInfo
 import com.cmzc.xj_file.app.core.model.Connection
 import com.cmzc.xj_file.app.core.model.ConnectionType
+import com.cmzc.xj_file.app.core.image.AppIconLoader
+import com.cmzc.xj_file.app.core.image.RemoteAppIconLoader
+import com.cmzc.xj_file.app.core.image.ThumbnailLoader
+import com.cmzc.xj_file.app.core.image.Thumbnails
 import com.cmzc.xj_file.app.core.playback.MediaTypes
 import com.cmzc.xj_file.app.core.playback.PlaybackSource
 import com.cmzc.xj_file.app.core.playback.ViewerPage
@@ -52,6 +62,8 @@ import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.util.UUID
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.delay
 import java.io.File
 
@@ -148,6 +160,11 @@ data class ViewerRequest(
         get() = pages.getOrElse(startIndex) { pages.first() }
 }
 
+data class PdfViewerRequest(
+    val file: File,
+    val title: String,
+)
+
 /**
  * 一次「内置文本编辑」会话。
  *
@@ -162,6 +179,12 @@ data class TextEditorSession(
     val hadErrors: Boolean = false,
 )
 
+/** 保存时要么按原路径覆盖，要么在冲突后明确选择覆盖，或只落本地副本。 */
+enum class EditorSavePolicy { NORMAL, OVERWRITE, LOCAL_COPY }
+
+/** 保存结果：冲突不是失败，UI 需要弹窗让用户决定。 */
+enum class EditorSaveResult { SAVED, CONFLICT, FAILED }
+
 /**
  * 一次「类相册视图」请求。
  *
@@ -174,6 +197,28 @@ data class GalleryRequest(
     val pages: List<ViewerPage>,
 )
 
+/**
+ * 当前打开的压缩包。targetDir 是打开时所在的面板目录，解压默认落在这里。
+ * 本地压缩包直接读原文件；远程压缩包先落到 cache，关闭时清理。
+ */
+data class ArchiveSession(
+    val side: PanelSide,
+    val sourceId: String,
+    val targetDir: String,
+    val archiveName: String,
+    val localFile: File,
+    val entries: List<ArchiveEntryInfo>,
+    val temporary: Boolean,
+)
+
+/** 压缩包内文本条目的内置只读预览。 */
+data class ArchiveTextPreview(
+    val name: String,
+    val text: String,
+    val encoding: String,
+    val hadErrors: Boolean,
+)
+
 class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     private val repo = ConnectionRepository(app)
@@ -181,6 +226,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val shortcutRepo = ShortcutDirRepository(app)
     private val localFs = LocalFileSystem()
     private val remoteSystems = mutableMapOf<String, RemoteFileSystem>()
+    /** 远程文件列表的缩略图串行读取：SftpFileSystem 在流关闭前不能并发操作。 */
+    private val remoteThumbnailMutex = Mutex()
+    private val remoteAppIconMutex = Mutex()
 
     private val anchorBySide = mutableMapOf<PanelSide, String>()
 
@@ -241,9 +289,33 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val _pendingViewer = MutableStateFlow<ViewerRequest?>(null)
     val pendingViewer: StateFlow<ViewerRequest?> = _pendingViewer.asStateFlow()
 
+    /** 内置 PDF 查看器；非 null 时 MainScreen 盖一层。 */
+    private val _pendingPdf = MutableStateFlow<PdfViewerRequest?>(null)
+    val pendingPdf: StateFlow<PdfViewerRequest?> = _pendingPdf.asStateFlow()
+
     /** 类相册视图：非 null 时盖一层 4 列网格。和查看页可以叠加（查看页在上）。 */
     private val _gallery = MutableStateFlow<GalleryRequest?>(null)
     val gallery: StateFlow<GalleryRequest?> = _gallery.asStateFlow()
+
+    /** 当前打开的压缩包；null 表示没有压缩包页面。 */
+    private val _pendingArchive = MutableStateFlow<ArchiveSession?>(null)
+    val pendingArchive: StateFlow<ArchiveSession?> = _pendingArchive.asStateFlow()
+
+    /** 压缩包解压中状态和进度。 */
+    private val _archiveBusy = MutableStateFlow(false)
+    val archiveBusy: StateFlow<Boolean> = _archiveBusy.asStateFlow()
+
+    private val _archiveProgress = MutableStateFlow(0 to 0)
+    val archiveProgress: StateFlow<Pair<Int, Int>> = _archiveProgress.asStateFlow()
+
+    private val _archiveNotice = MutableStateFlow<String?>(null)
+    val archiveNotice: StateFlow<String?> = _archiveNotice.asStateFlow()
+
+    private val _archiveTextPreview = MutableStateFlow<ArchiveTextPreview?>(null)
+    val archiveTextPreview: StateFlow<ArchiveTextPreview?> = _archiveTextPreview.asStateFlow()
+
+    /** 压缩包只读句柄只在 ViewModel 内保存，Compose 不持有 IO 资源。 */
+    private var archiveReader: ArchiveReader? = null
 
     /** 内置文本编辑器：非 null 时盖一层整屏编辑器。 */
     private val _pendingEditor = MutableStateFlow<TextEditorSession?>(null)
@@ -261,6 +333,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      */
     private var editorBytes: ByteArray? = null
     private var editorSourceId: String? = null
+    /** 打开时的远程/本地文件基线，用于保存前冲突检测。 */
+    private var editorBaseMtime: Long = 0L
+    private var editorBaseSize: Long = -1L
 
     /** 每个批次对应的目标文件系统，取消时用来删目标文件。 */
     private val batchDstFs = mutableMapOf<String, RemoteFileSystem>()
@@ -327,6 +402,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         _connections.value = repo.loadList()
         _recentPaths.value = recentRepo.load()
         _shortcutDirs.value = shortcutRepo.load()
+        // 连接配置就绪后，让 TransferManager 把上次没传完的任务重新入队。
+        TransferManager.registerRestoreResolver { tag -> fsForRestoreTag(tag) }
         refresh(PanelSide.LEFT)
         refresh(PanelSide.RIGHT)
 
@@ -376,8 +453,28 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         )
     }
 
+    private fun fsForTag(tag: String): RemoteFileSystem? {
+        if (tag == "local") return localFs
+        val type = tag.substringBefore(':', "").uppercase()
+        val host = tag.substringAfter(':', "")
+        if (host.isBlank()) return null
+        val conn = _connections.value.firstOrNull {
+            it.host == host && it.type.name == type
+        } ?: return null
+        val sourceId = "${conn.type.name.lowercase()}:${conn.id}"
+        return remoteSystems.getOrPut(sourceId) { buildFs(conn) }
+    }
+
+    /** 恢复持久化传输任务时按 tag 找/建文件系统。 */
+    private fun fsForRestoreTag(tag: String): RemoteFileSystem? =
+        runCatching { fsForTag(tag) }.getOrNull()
+
     fun refresh(side: PanelSide, clearLastCreated: Boolean = true) {
         val s = stateOf(side).value
+        // 手动刷新必须绕过磁盘清单的 30 秒缓存：刚插/刚换碟时用户按刷新就是要重新探测。
+        if (s.sourceId.startsWith("sftp:")) {
+            DriveProbe.invalidate(s.sourceId)
+        }
         load(
             side, s.sourceId, s.sourceLabel, s.currentPath,
             pushHistory = false,
@@ -1333,10 +1430,18 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * 只分流、不替换 —— 老路是文档的唯一出路，也是内置页失败时的回退目标。
      */
     fun openRemoteFile(side: PanelSide, item: RemoteFile) {
+        if (!item.isDirectory && ArchiveFormats.isArchive(item.name)) {
+            openArchive(side, item)
+            return
+        }
         // 认识、但 Media3 没有提取器（WMV/WMA/ASF/RM/RMVB）：直接走"下载 → 系统应用"，
         // 别让内置播放器先失败一次（用户只会看到"打不开"）。
         if (!item.isDirectory && MediaTypes.isExternalPlayable(item.name)) {
             downloadAndOpen(side, item)
+            return
+        }
+        if (!item.isDirectory && TextFileTypes.isPdf(item.name)) {
+            openPdfRemote(side, item)
             return
         }
         if (!item.isDirectory &&
@@ -1358,13 +1463,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * 5B：把文件读进内存并用内置编辑器打开。
      *
      * 用户明确要求：远程文件**不落缓存**，直接读进内存；保存时再传回去。
-     * 因此这里限制 2 MB，超过就拒绝，避免把手机内存和 Compose 一起拖死。
+     * 大文件会切到按行编辑器；内存上限放到 16 MB，超过仍拒绝。
      */
     fun openTextEditor(side: PanelSide, item: RemoteFile) {
         if (item.isDirectory) return
         val state = stateOf(side).value
         if (item.size > TextFileTypes.MAX_EDIT_BYTES) {
-            stateOf(side).update { it.copy(error = "文件太大，暂不支持在编辑器里打开（超过 2 MB）") }
+            stateOf(side).update { it.copy(error = "文件太大，暂不支持在编辑器里打开（超过 ${TextFileTypes.MAX_EDIT_LABEL}）") }
             return
         }
         stateOf(side).update { it.copy(loading = true, error = null) }
@@ -1383,6 +1488,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 editorBytes = bytes
                 editorSourceId = state.sourceId
+                editorBaseMtime = item.lastModified
+                editorBaseSize = item.size
+                DebugLog.ev(
+                    getApplication(),
+                    "editor-open ${item.path} baseSize=${item.size} baseMtime=${item.lastModified}"
+                )
                 _pendingEditor.value = TextEditorSession(
                     side = side,
                     file = item,
@@ -1402,7 +1513,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 stateOf(side).update {
                     it.copy(
                         error = if (t is TextTooLargeException) {
-                            "文件太大，暂不支持在编辑器里打开（超过 2 MB）"
+                            "文件太大，暂不支持在编辑器里打开（超过 ${TextFileTypes.MAX_EDIT_LABEL}）"
                         } else {
                             "打开失败：读不到这个文件"
                         }
@@ -1414,21 +1525,39 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** 编辑器保存：本地/远程都覆盖原文件；覆盖失败落本地缓存兜底（用户要求）。 */
-    suspend fun saveEditor(session: TextEditorSession, request: EditorSaveRequest): Boolean {
+    /** 编辑器保存：本地/远程都覆盖原文件；覆盖失败落本地副本兜底。 */
+    suspend fun saveEditor(
+        session: TextEditorSession,
+        request: EditorSaveRequest,
+        policy: EditorSavePolicy = EditorSavePolicy.NORMAL,
+    ): EditorSaveResult {
         val bytes = try {
             TextCodecImpl.encode(request.text, request.encoding, request.bom, request.lineEnding)
         } catch (e: TextEncodeException) {
             _editorNotice.value = "保存失败：有字符在当前编码里表示不了，请换成 UTF-8"
-            return false
+            return EditorSaveResult.FAILED
         } catch (t: Throwable) {
             // 不把底层异常名/错误码甩给用户；编码内核的详细信息只在日志里
             _editorNotice.value = "保存失败：这个文件当前编码不能保存，请换一个编码"
-            return false
+            return EditorSaveResult.FAILED
         }
+
+        if (policy == EditorSavePolicy.LOCAL_COPY) {
+            return saveEditorLocalCopy(session.file.name, bytes)
+        }
+
         val sourceId = editorSourceId ?: stateOf(session.side).value.sourceId
         val fs = runCatching { fsFor(sourceId) }.getOrNull()
         if (fs != null) {
+            if (policy == EditorSavePolicy.NORMAL) {
+                val changed = withContext(Dispatchers.IO) {
+                    runCatching { editorFileChanged(fs, session.file.path) }.getOrDefault(false)
+                }
+                if (changed) {
+                    _editorNotice.value = "保存前检测到文件已被其他程序修改"
+                    return EditorSaveResult.CONFLICT
+                }
+            }
             val ok = withContext(Dispatchers.IO) {
                 runCatching {
                     ByteArrayInputStream(bytes).use { input ->
@@ -1438,20 +1567,54 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             }
             if (ok) {
                 editorBytes = bytes
-                return true
+                refreshEditorBaseline(fs, session.file.path, bytes.size.toLong())
+                return EditorSaveResult.SAVED
             }
         }
-        // 覆盖失败：不把用户内容丢掉，落本地缓存并在界面上给完整路径
+        // 覆盖失败：不把用户内容丢掉，落本地文件并在界面上给完整路径
+        return saveEditorLocalCopy(session.file.name, bytes)
+    }
+
+    private suspend fun saveEditorLocalCopy(name: String, bytes: ByteArray): EditorSaveResult {
         val fallback = withContext(Dispatchers.IO) {
-            runCatching { writeFallback(session.file.name, bytes) }.getOrNull()
+            runCatching { writeFallback(name, bytes) }.getOrNull()
         }
         if (fallback != null) {
             editorBytes = bytes
-            _editorNotice.value = "覆盖失败，已保存到本地：${fallback.absolutePath}"
-            return true
+            _editorNotice.value = "已保存本地副本：${fallback.absolutePath}"
+            return EditorSaveResult.SAVED
         }
         _editorNotice.value = "保存失败：原文件写不进去，本地副本也存不了"
-        return false
+        return EditorSaveResult.FAILED
+    }
+
+    /** 基线不一致 = 打开后有人改过/删过；宁可弹冲突，也不静默覆盖。 */
+    private suspend fun editorFileChanged(fs: RemoteFileSystem, path: String): Boolean {
+        val parent = path.trimEnd('/').substringBeforeLast('/', "") + "/"
+        val current = fs.list(parent).firstOrNull {
+            it.path.trimEnd('/') == path.trimEnd('/')
+        } ?: return true
+        val sizeChanged = editorBaseSize >= 0 && current.size != editorBaseSize
+        val timeChanged = editorBaseMtime > 0 &&
+            current.lastModified > 0 &&
+            current.lastModified != editorBaseMtime
+        if (sizeChanged || timeChanged) {
+            DebugLog.ev(
+                getApplication(),
+                "editor-conflict $path base=${editorBaseSize}/${editorBaseMtime} " +
+                    "current=${current.size}/${current.lastModified}"
+            )
+        }
+        return sizeChanged || timeChanged
+    }
+
+    private suspend fun refreshEditorBaseline(fs: RemoteFileSystem, path: String, writtenSize: Long) {
+        val parent = path.trimEnd('/').substringBeforeLast('/', "") + "/"
+        val current = runCatching {
+            fs.list(parent).firstOrNull { it.path.trimEnd('/') == path.trimEnd('/') }
+        }.getOrNull()
+        editorBaseSize = current?.size ?: writtenSize
+        editorBaseMtime = current?.lastModified ?: 0L
     }
 
     /** 用户手动换编码：用原始字节重新解码，BOM 重置为 NONE，避免保存时 BOM/编码不匹配。 */
@@ -1482,6 +1645,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         _pendingEditor.value = null
         editorBytes = null
         editorSourceId = null
+        editorBaseMtime = 0L
+        editorBaseSize = -1L
     }
 
     fun consumeEditorNotice() {
@@ -1494,7 +1659,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
-     * 读文件到内存，硬上限 2 MB：先看 item.size，未知大小再按字节数截。
+     * 读文件到内存，硬上限 16 MB：先看 item.size，未知大小再按字节数截。
      * 不能直接 `readBytes()` 读整个远程文件——用户说的「往内存堆」只适用于文本。
      */
     private suspend fun readTextBytes(fs: RemoteFileSystem, path: String): ByteArray =
@@ -1547,6 +1712,60 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         return true
     }
 
+    /** 本地 PDF：直接交给内置 PdfRenderer。 */
+    fun openPdfLocal(side: PanelSide, item: RemoteFile) {
+        val file = File(item.path)
+        if (!file.isFile) {
+            stateOf(side).update { it.copy(error = "PDF 不存在或读不到") }
+            return
+        }
+        _pendingPdf.value = PdfViewerRequest(file, item.name)
+    }
+
+    /**
+     * 远程 PDF：先整份下载到 cacheDir/pdf-preview，再交给内置查看器。
+     * PDF 需要可随机读取的本地文件，不能像文本/图片那样直接读远程流。
+     */
+    fun openPdfRemote(side: PanelSide, item: RemoteFile) {
+        if (item.isDirectory) return
+        val state = stateOf(side).value
+        stateOf(side).update { it.copy(loading = true, error = null) }
+        viewModelScope.launch {
+            try {
+                val fs = fsFor(state.sourceId)
+                val dir = File(getApplication<Application>().cacheDir, "pdf-preview")
+                    .apply { mkdirs() }
+                val safeName = item.name.replace(Regex("[\\\\/:*?\"<>|]"), "_")
+                    .ifBlank { "document.pdf" }
+                val dst = File(dir, "${UUID.randomUUID()}-$safeName")
+                withContext(Dispatchers.IO) {
+                    fs.openInput(item.path).use { input ->
+                        dst.outputStream().use { output -> input.copyTo(output) }
+                    }
+                }
+                stateOf(side).update { it.copy(loading = false) }
+                _pendingPdf.value = PdfViewerRequest(dst, item.name)
+            } catch (t: Throwable) {
+                if (t is kotlinx.coroutines.CancellationException) throw t
+                stateOf(side).update {
+                    it.copy(
+                        loading = false,
+                        error = "PDF 下载失败：${t.message ?: t.javaClass.simpleName}"
+                    )
+                }
+            }
+        }
+    }
+
+    fun openPdfFile(file: File, title: String) {
+        if (!file.isFile) return
+        _pendingPdf.value = PdfViewerRequest(file, title)
+    }
+
+    fun closePdf() {
+        _pendingPdf.value = null
+    }
+
     /**
      * 组装一次查看请求。
      *
@@ -1594,6 +1813,66 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             },
             isLocal = state.sourceId == "local"
         )
+    }
+
+    /**
+     * 文件列表图标位的图片/视频缩略图。
+     * 本地直接读；远程串行读，避免 SFTP 通道被多个缩略图同时占用。
+     */
+    suspend fun loadThumbnail(side: PanelSide, item: RemoteFile, sizePx: Int): Bitmap? {
+        if (item.isDirectory) return null
+        val name = item.name.lowercase()
+        val appIconFile = name.endsWith(".apk") || name.endsWith(".exe")
+        if (!appIconFile && !MediaTypes.isImage(item.name) && !MediaTypes.isVideo(item.name)) {
+            return null
+        }
+        val state = stateOf(side).value
+        if (appIconFile) {
+            if (state.sourceId == "local") {
+                val file = File(item.path)
+                if (!file.isFile) return null
+                return AppIconLoader.load(getApplication(), file, sizePx)
+            }
+            return loadRemoteAppIcon(state, item, sizePx)
+        }
+        if (state.sourceId == "local") {
+            val file = File(item.path)
+            if (!file.isFile) return null
+            return if (MediaTypes.isImage(item.name)) {
+                ThumbnailLoader.loadImage(file, sizePx)
+            } else {
+                ThumbnailLoader.loadVideo(file, sizePx)
+            }
+        }
+        val source = sourceOf(state, item) ?: return null
+        val page = ViewerPage(item, source)
+        return remoteThumbnailMutex.withLock {
+            Thumbnails.load(getApplication(), page, sizePx)
+        }
+    }
+
+    /**
+     * 远程 APK/EXE 的图标。只读 ZIP 中央目录/PE 资源节，不再把整份文件拉下来。
+     */
+    private suspend fun loadRemoteAppIcon(
+        state: PanelUiState,
+        item: RemoteFile,
+        sizePx: Int,
+    ): Bitmap? {
+        if (item.size <= 0) return null
+        val fs = fsFor(state.sourceId) ?: return null
+        val ext = item.name.substringAfterLast('.', "").lowercase()
+        if (ext != "apk" && ext != "exe") return null
+        return remoteAppIconMutex.withLock {
+            RemoteAppIconLoader.load(
+                fs = fs,
+                path = item.path,
+                size = item.size,
+                extension = ext,
+                targetPx = sizePx,
+                tempDir = getApplication<Application>().cacheDir,
+            )
+        }
     }
 
     /** 一个文件的数据源。本地直接读文件，网络走 fs（连接没建好就返回 null，让上层退回老路）。 */
@@ -1661,6 +1940,273 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     /** 关闭类相册视图（查看页如果开着，会先回到相册）。 */
     fun closeGallery() {
         _gallery.value = null
+    }
+
+    /**
+     * 打开当前文件栏里的压缩包。
+     *
+     * 本地压缩包直接读原文件；远程压缩包先下载到 cache，避免 SMB/SFTP
+     * 边读边解压时占用同一条通道。兼容格式见 [ArchiveFormats]。
+     */
+    fun openArchive(side: PanelSide, item: RemoteFile) {
+        if (item.isDirectory) return
+        val format = ArchiveFormats.kindOf(item.name)
+        if (format == null) {
+            val label = ArchiveFormats.unsupportedLabel(item.name)
+            stateOf(side).update {
+                it.copy(error = if (label != null) "$label 压缩包暂不支持读取" else "这不是可识别的压缩包")
+            }
+            return
+        }
+        val panel = stateOf(side).value
+        val sourceId = panel.sourceId
+        val targetDir = panel.currentPath
+        stateOf(side).update { it.copy(loading = true, error = null) }
+        viewModelScope.launch {
+            var temp: File? = null
+            try {
+                val fs = fsFor(sourceId)
+                val local = if (sourceId == "local") {
+                    File(item.path)
+                } else {
+                    val dir = File(
+                        File(getApplication<Application>().cacheDir, "archive-open"),
+                        UUID.randomUUID().toString()
+                    ).apply { mkdirs() }
+                    val safeName = item.name.replace(Regex("[\\\\/:*?\"<>|]"), "_")
+                        .ifBlank { "archive" }
+                    val dst = File(dir, safeName)
+                    fs.download(item.path, dst) { _, _ -> }
+                    temp = dst
+                    dst
+                }
+                if (!local.isFile) error("压缩包不存在或读不到")
+                val reader = withContext(Dispatchers.IO) {
+                    ArchiveReader.open(local, item.name)
+                }
+                if (reader.entries.isEmpty()) {
+                    reader.close()
+                    error("压缩包是空的")
+                }
+                archiveReader?.close()
+                archiveReader = reader
+                _pendingArchive.value = ArchiveSession(
+                    side = side,
+                    sourceId = sourceId,
+                    targetDir = targetDir,
+                    archiveName = item.name,
+                    localFile = local,
+                    entries = reader.entries,
+                    temporary = sourceId != "local",
+                )
+                _archiveNotice.value = null
+                _archiveProgress.value = 0 to 0
+            } catch (t: Throwable) {
+                if (t is kotlinx.coroutines.CancellationException) throw t
+                temp?.parentFile?.let { runCatching { it.deleteRecursively() } }
+                val message = when (t) {
+                    is UnsupportedArchiveException -> t.message ?: "暂不支持这个压缩包"
+                    else -> "打开压缩包失败：${t.message ?: t.javaClass.simpleName}"
+                }
+                stateOf(side).update { it.copy(error = message) }
+            } finally {
+                stateOf(side).update { it.copy(loading = false) }
+            }
+        }
+    }
+
+    fun closeArchive() {
+        val session = _pendingArchive.value
+        _pendingArchive.value = null
+        _archiveTextPreview.value = null
+        runCatching { archiveReader?.close() }
+        archiveReader = null
+        _archiveBusy.value = false
+        _archiveProgress.value = 0 to 0
+        if (session?.temporary == true) {
+            session.localFile.parentFile?.let { runCatching { it.deleteRecursively() } }
+        }
+    }
+
+    fun closeArchiveTextPreview() {
+        _archiveTextPreview.value = null
+    }
+
+    /**
+     * 预览单个条目。优先走内置：
+     * - 文本 -> 只读文本预览；
+     * - 图片/可播放音视频 -> 内置查看页/播放器；
+     * - 其余（PDF/Office/未知二进制）才交给系统查看器。
+     */
+    fun previewArchiveEntry(entry: ArchiveEntryInfo) {
+        if (entry.isDirectory) return
+        val session = _pendingArchive.value ?: return
+        val reader = archiveReader ?: return
+        viewModelScope.launch {
+            try {
+                val dir = File(
+                    File(getApplication<Application>().cacheDir, "archive-preview"),
+                    UUID.randomUUID().toString()
+                ).apply { mkdirs() }
+                val safeName = entry.name.replace(Regex("[\\\\/:*?\"<>|]"), "_")
+                    .ifBlank { "preview" }
+                val dst = File(dir, safeName)
+                withContext(Dispatchers.IO) {
+                    reader.openEntry(entry).use { input ->
+                        dst.outputStream().use { output -> input.copyTo(output) }
+                    }
+                }
+
+                if (TextFileTypes.shouldOpenAsText(entry.name) &&
+                    dst.length() <= TextFileTypes.MAX_EDIT_BYTES
+                ) {
+                    val bytes = withContext(Dispatchers.IO) { dst.readBytes() }
+                    if (!TextFileTypes.looksBinary(bytes)) {
+                        val decoded = runCatching { TextCodecImpl.decode(bytes) }.getOrNull()
+                        if (decoded != null) {
+                            _archiveTextPreview.value = ArchiveTextPreview(
+                                name = entry.name,
+                                text = decoded.text,
+                                encoding = decoded.encoding,
+                                hadErrors = decoded.hadErrors,
+                            )
+                            return@launch
+                        }
+                    }
+                }
+
+                if (TextFileTypes.isPdf(entry.name)) {
+                    _pendingPdf.value = PdfViewerRequest(dst, entry.name)
+                    return@launch
+                }
+
+                if (MediaTypes.isImage(entry.name)) {
+                    // 同一压缩包目录下的图片全部放进查看页，缩略图条才能滑动切换；
+                    // 不预解压，PlaybackSource.ArchiveEntry 按需从压缩包里读。
+                    val images = session.entries
+                        .filter {
+                            !it.isDirectory &&
+                                it.parent == entry.parent &&
+                                MediaTypes.isImage(it.name)
+                        }
+                        .let { list ->
+                            if (list.any { it.path == entry.path }) list else list + entry
+                        }
+                    val pages = images.map { image ->
+                        val file = RemoteFile(
+                            name = image.name,
+                            path = "${session.localFile.absolutePath}#${image.path}",
+                            isDirectory = false,
+                            size = image.size,
+                            lastModified = image.lastModified,
+                        )
+                        ViewerPage(
+                            file = file,
+                            source = PlaybackSource.ArchiveEntry(
+                                archiveFile = session.localFile,
+                                archiveName = session.archiveName,
+                                entry = image,
+                                sizeBytes = image.size,
+                                displayName = image.name,
+                            ),
+                        )
+                    }
+                    val start = pages.indexOfFirst { it.file.path.endsWith("#${entry.path}") }
+                        .coerceAtLeast(0)
+                    _pendingViewer.value = ViewerRequest(
+                        side = session.side,
+                        pages = pages,
+                        startIndex = start,
+                        strip = pages,
+                        isLocal = true,
+                    )
+                    return@launch
+                }
+
+                if (MediaTypes.isPlayable(entry.name)) {
+                    val file = RemoteFile(
+                        name = entry.name,
+                        path = dst.absolutePath,
+                        isDirectory = false,
+                        size = dst.length(),
+                        lastModified = dst.lastModified(),
+                    )
+                    val page = ViewerPage(file, PlaybackSource.Direct(dst, entry.name))
+                    _pendingViewer.value = ViewerRequest(
+                        side = session.side,
+                        pages = listOf(page),
+                        startIndex = 0,
+                        strip = listOf(page),
+                        isLocal = true,
+                    )
+                    return@launch
+                }
+
+                // 内置没有对应渲染器：PDF/Office/未知二进制退回系统查看器。
+                _pendingOpen.value = dst
+            } catch (t: Throwable) {
+                if (t is kotlinx.coroutines.CancellationException) throw t
+                _archiveNotice.value = "预览失败：${t.message ?: t.javaClass.simpleName}"
+            }
+        }
+    }
+
+    /** 解压全部条目（目录条目会先建好）。 */
+    fun extractArchiveAll() {
+        val session = _pendingArchive.value ?: return
+        extractArchive(session.entries)
+    }
+
+    /** 解压单个条目；目录条目会带上它下面的所有子项。 */
+    fun extractArchiveEntry(entry: ArchiveEntryInfo) {
+        val session = _pendingArchive.value ?: return
+        val items = if (entry.isDirectory) {
+            session.entries.filter { it.path == entry.path || it.path.startsWith(entry.path + "/") }
+        } else {
+            listOf(entry)
+        }
+        extractArchive(items)
+    }
+
+    private fun extractArchive(entries: List<ArchiveEntryInfo>) {
+        val session = _pendingArchive.value ?: return
+        val reader = archiveReader ?: return
+        if (_archiveBusy.value || entries.isEmpty()) return
+        // 双栏的默认语义：压缩包在左栏时解压到右栏，在右栏时解压到左栏。
+        val targetSide = if (session.side == PanelSide.LEFT) PanelSide.RIGHT else PanelSide.LEFT
+        val targetState = stateOf(targetSide).value
+        _archiveBusy.value = true
+        _archiveProgress.value = 0 to entries.size
+        viewModelScope.launch {
+            try {
+                val fs = fsFor(targetState.sourceId)
+                val result = withContext(Dispatchers.IO) {
+                    ArchiveExtractor.extract(
+                        reader = reader,
+                        entries = entries,
+                        targetFs = fs,
+                        targetDir = targetState.currentPath,
+                    ) { done, total -> _archiveProgress.value = done to total }
+                }
+                refresh(targetSide, clearLastCreated = false)
+                val text = buildString {
+                    append("已解压 ${result.extracted} 个文件")
+                    if (result.directories > 0) append("、${result.directories} 个目录")
+                    if (result.renamed > 0) append("；${result.renamed} 个同名项已自动改名")
+                    if (result.errors.isNotEmpty()) append("；${result.errors.size} 个失败")
+                }
+                _archiveNotice.value = text
+            } catch (t: Throwable) {
+                if (t is kotlinx.coroutines.CancellationException) throw t
+                _archiveNotice.value = "解压失败：${t.message ?: t.javaClass.simpleName}"
+            } finally {
+                _archiveBusy.value = false
+            }
+        }
+    }
+
+    fun consumeArchiveNotice() {
+        _archiveNotice.value = null
     }
 
     /**
@@ -1959,6 +2505,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     if (canonPathForFs(t.srcFs, t.srcPath) == canonPathForFs(t.dstFs, dstPath)) {
                         continue
                     }
+                    val top = session.topItems.firstOrNull { index in it.taskIndexes }
                     val id = TransferManager.enqueue(
                         batchId = session.batchId,
                         batchName = session.batchName,
@@ -1967,7 +2514,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         srcPath = t.srcPath,
                         dstFs = t.dstFs,
                         dstPath = dstPath,
-                        totalBytes = t.totalBytes
+                        totalBytes = t.totalBytes,
+                        isMove = session.isMove,
+                        topSrcPath = top?.srcPath ?: t.srcPath,
                     )
                     allTaskIds.add(id)
                     val file = TransferredFile(

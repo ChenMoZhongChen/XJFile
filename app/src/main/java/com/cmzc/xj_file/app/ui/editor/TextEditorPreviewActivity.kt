@@ -73,13 +73,13 @@ private fun PreviewRoot() {
             ),
             encodingOptions = TextCodecImpl.supportedEncodings,
             onBack = { showEditor = false },
-            onSave = { req ->
+            onSave = { req, _ ->
                 Toast.makeText(
                     context,
                     "保存回调：${req.encoding} / ${req.bom} / ${req.lineEnding}，${req.text.length} 字符",
                     Toast.LENGTH_LONG
                 ).show()
-                true
+                com.cmzc.xj_file.app.vm.EditorSaveResult.SAVED
             },
             onEncodingSelected = { name ->
                 encoding = name

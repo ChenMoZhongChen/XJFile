@@ -5,6 +5,7 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -37,7 +38,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -56,12 +61,17 @@ fun AppTopBar(
     onTasks: () -> Unit,
     onSettings: () -> Unit,
     onGallery: () -> Unit = {},
+    onExtractArchive: (() -> Unit)? = null,
     onPathClick: () -> Unit,
     onScrollToTop: () -> Unit = {},
     onSwipeRight: () -> Unit = {},
     onCopyPath: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
+    val pathMeasurer = rememberTextMeasurer()
+    val pathStyle = remember {
+        TextStyle(fontFamily = FontFamily.Monospace, fontSize = 12.sp)
+    }
     // 顶栏这几个都是按钮，跟「模块颜色 → 按钮」走
     val buttonColor = LocalModuleColors.current.button
     var showMoreMenu by remember { mutableStateOf(false) }
@@ -119,14 +129,20 @@ fun AppTopBar(
                         }
                     )
             ) {
-                Text(
-                    text = path,
-                    fontSize = 12.sp,
-                    fontFamily = FontFamily.Monospace,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier
-                )
+                BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                    val maxPx = with(LocalDensity.current) { maxWidth.toPx() }
+                    val displayPath = remember(path, maxPx) {
+                        ellipsizePathStart(path, maxPx, pathStyle, pathMeasurer)
+                    }
+                    Text(
+                        text = displayPath,
+                        fontSize = 12.sp,
+                        fontFamily = FontFamily.Monospace,
+                        maxLines = 1,
+                        overflow = TextOverflow.Clip,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
                 Text(
                     text = stats,
                     fontSize = 10.sp,
@@ -159,6 +175,15 @@ fun AppTopBar(
                     expanded = showMoreMenu,
                     onDismissRequest = { showMoreMenu = false }
                 ) {
+                    if (onExtractArchive != null) {
+                        DropdownMenuItem(
+                            text = { Text("解压全部") },
+                            onClick = {
+                                showMoreMenu = false
+                                onExtractArchive()
+                            }
+                        )
+                    }
                     DropdownMenuItem(
                         text = { Text("任务") },
                         leadingIcon = {
@@ -203,4 +228,34 @@ fun AppTopBar(
             }
         }
     }
+}
+
+/**
+ * 顶栏路径只做显示层截断：从末尾保留能放下的部分，前面用省略号。
+ * 点击/长按仍然使用完整 path，不影响路径编辑或复制。
+ */
+private fun ellipsizePathStart(
+    path: String,
+    maxWidthPx: Float,
+    style: TextStyle,
+    measurer: TextMeasurer,
+): String {
+    if (path.isEmpty() || !maxWidthPx.isFinite() || maxWidthPx <= 0f) return path
+    if (measurer.measure(path, style, maxLines = 1).size.width <= maxWidthPx) return path
+
+    val ellipsis = "…"
+    var low = 1
+    var high = path.length
+    var best = ellipsis
+    while (low <= high) {
+        val mid = (low + high) ushr 1
+        val candidate = ellipsis + path.takeLast(mid)
+        if (measurer.measure(candidate, style, maxLines = 1).size.width <= maxWidthPx) {
+            best = candidate
+            low = mid + 1
+        } else {
+            high = mid - 1
+        }
+    }
+    return best
 }

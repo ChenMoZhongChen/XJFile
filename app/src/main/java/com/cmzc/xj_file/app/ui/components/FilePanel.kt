@@ -1,5 +1,6 @@
 package com.cmzc.xj_file.app.ui.components
 
+import android.graphics.Bitmap
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -67,6 +68,13 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.delay
 import kotlin.math.abs
 
+/**
+ * 两个面板的滚动位置缓存放在 Composable 外：
+ * 打开压缩包时 FilePanel 会被临时移出组合，局部的 remember 会丢；
+ * 用 panelKey + sourceId + path 作为键，退出压缩包后还能回到原滚动位置。
+ */
+private val panelListStateCache = mutableMapOf<String, LazyListState>()
+
 @Composable
 fun FilePanel(
     state: PanelUiState,
@@ -86,11 +94,14 @@ fun FilePanel(
     scrollToTopTick: Int = 0,
     onCopyPath: (String) -> Unit = {},
     onDisconnect: () -> Unit = {},
+    loadThumbnail: (suspend (RemoteFile, Int) -> Bitmap?)? = null,
+    panelKey: String = "default",
     modifier: Modifier = Modifier
 ) {
-    // 每个路径一个独立的 LazyListState，返回旧目录时能恢复滚动位置
-    val listStateCache = remember { mutableMapOf<String, LazyListState>() }
-    val listState = listStateCache.getOrPut(state.currentPath) {
+    // 每个面板、每个路径一个独立 LazyListState，返回旧目录或退出压缩包时能恢复滚动位置
+    val listState = panelListStateCache.getOrPut(
+        "$panelKey|${state.sourceId}|${state.currentPath}"
+    ) {
         LazyListState()
     }
 
@@ -361,6 +372,7 @@ fun FilePanel(
                         selected = item.path in state.selection,
                         selectionMode = state.selectionMode,
                         highlighted = item.path == highlightPath,
+                        loadThumbnail = loadThumbnail,
                         onClick = {
                             consumeHighlight()
                             onFocus()
@@ -437,6 +449,7 @@ private fun FileRow(
     selected: Boolean,
     selectionMode: Boolean,
     highlighted: Boolean,
+    loadThumbnail: (suspend (RemoteFile, Int) -> Bitmap?)?,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     onSwipeLeft: () -> Unit
@@ -507,14 +520,11 @@ private fun FileRow(
             .padding(horizontal = 6.dp, vertical = 4.dp),
         verticalAlignment = Alignment.Top
     ) {
-        Icon(
-            imageVector = if (item.isDirectory) Icons.Default.Folder else Icons.Default.Description,
-            contentDescription = null,
-            tint = if (item.isDirectory) moduleColors.folder
-            else MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier
-                .padding(top = 2.dp)
-                .size(18.dp)
+        FilePreviewIcon(
+            item = item,
+            loadThumbnail = loadThumbnail,
+            modifier = Modifier.padding(top = 2.dp),
+            size = 22.dp,
         )
         Spacer(Modifier.width(8.dp))
         Column(modifier = Modifier.weight(1f)) {

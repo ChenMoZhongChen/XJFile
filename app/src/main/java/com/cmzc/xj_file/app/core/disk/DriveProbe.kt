@@ -104,7 +104,14 @@ object DriveProbe {
         fs: SftpFileSystem,
         drives: List<DriveInfo>,
     ): List<DriveInfo> {
-        val letters = drives.filter { it.isOptical }.map { it.letter }
+        val letters = drives
+            .filter {
+                it.isOptical &&
+                    !it.shellAudio &&
+                    !it.shellEmpty &&
+                    it.optical == OpticalMedia.NONE
+            }
+            .map { it.letter }
         if (letters.isEmpty()) return drives
         val byLetter = coroutineScope {
             letters.map { letter ->
@@ -141,7 +148,7 @@ object DriveProbe {
         letter: String,
     ): Map<String, OpticalProbe> {
         val cmd = PcScript.command(context, "optical.ps1", "__DRIVES__" to "@('$letter')")
-        val out = runCatching { fs.exec(cmd, 6_000) }.getOrElse {
+        val out = runCatching { fs.exec(cmd, 20_000) }.getOrElse {
             DebugLog.ev(context, "optical $letter 超时/失败：${it.message}")
             return emptyMap()
         }
@@ -175,7 +182,7 @@ object DriveProbe {
                     it.optical == OpticalMedia.DVD_DATA ||
                         it.optical == OpticalMedia.DVD_VIDEO ||
                         it.optical == OpticalMedia.BD
-                    )
+                    ) && !it.shellMedia
             }
             .map { it.letter }
         if (letters.isEmpty()) return drives
@@ -221,7 +228,13 @@ object DriveProbe {
         // 空光驱/坏光驱的卷标读不到，不能再靠 "Audio CD" 卷标决定要不要读 TOC；
         // 只要 SCSI 说是 CD 就问一次 TOC，数据 CD 会返回 audio=false、tracks=[]。
         val letters = drives
-            .filter { it.isOptical && it.optical == OpticalMedia.CD && it.tracks.isEmpty() }
+            .filter {
+                it.isOptical &&
+                    it.optical == OpticalMedia.CD &&
+                    it.tracks.isEmpty() &&
+                    !it.shellAudio &&
+                    !it.shellMedia
+            }
             .map { it.letter }
         if (letters.isEmpty()) return drives
         val byLetter = loadTracks(context, fs, letters) ?: return drives
@@ -247,6 +260,9 @@ object DriveProbe {
                 else -> DriveKind.UNKNOWN
             }
             val videoTs = o.optBoolean("videoTs", false)
+            val shellAudio = o.optBoolean("shellAudio", false)
+            val shellEmpty = o.optBoolean("shellEmpty", false)
+            val shellMedia = o.optBoolean("shellMedia", false)
             // 第一段只能按容量猜 CD/DVD/BD，第二段会用 SCSI 的 profile 覆盖掉
             val media = when (o.optString("media", "")) {
                 "cd" -> OpticalMedia.CD
@@ -263,6 +279,9 @@ object DriveProbe {
                 freeBytes = o.optLong("freeBytes", 0),
                 busType = o.optString("bus", ""),
                 videoTs = videoTs,
+                shellAudio = shellAudio,
+                shellEmpty = shellEmpty,
+                shellMedia = shellMedia,
             )
         }
         return list

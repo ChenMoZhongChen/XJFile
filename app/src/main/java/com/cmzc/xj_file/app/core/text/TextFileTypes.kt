@@ -17,8 +17,9 @@ import com.cmzc.xj_file.app.core.playback.MediaTypes
  */
 object TextFileTypes {
 
-    /** 文本编辑器允许读入内存的最大字节数。远程也走内存，所以不能放开。 */
-    const val MAX_EDIT_BYTES: Long = 2L * 1024 * 1024
+    /** 文本编辑器允许读入内存的最大字节数。大文件走按行编辑器。 */
+    const val MAX_EDIT_BYTES: Long = 16L * 1024 * 1024
+    const val MAX_EDIT_LABEL: String = "16 MB"
 
     /** 明确按文本处理的代码/配置/日志/网页后缀（5C 高亮也围绕这些）。 */
     private val TEXT = setOf(
@@ -66,6 +67,8 @@ object TextFileTypes {
             name.lowercase() in setOf("dockerfile", "makefile", "cmakelists.txt")
 
     fun isOffice(name: String): Boolean = extensionOf(name) in OFFICE
+
+    fun isPdf(name: String): Boolean = extensionOf(name) == "pdf"
 
     fun isKnownBinary(name: String): Boolean {
         val ext = extensionOf(name)

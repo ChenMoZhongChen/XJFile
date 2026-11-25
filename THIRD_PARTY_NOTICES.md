@@ -16,7 +16,7 @@ Copyright (c) 2026 XJoffice ChenMoZhongChen.
 
 XJ File 自身源码包也已随 APK 提供，用于 LGPL 的“可重新构建/重新链接”：
 
-`assets/licenses/sources/XJFile-5.9.9.17128076-source.zip`
+`assets/licenses/sources/XJFile-6.0.0.180805736-source.zip`
 
 在应用内「开源软件声明 → XJ File（本应用）」详情页可以导出；jcifs-ng
 源码包在 jcifs-ng 详情页导出。

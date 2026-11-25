@@ -40,6 +40,7 @@ object AppSettings {
     private const val KEY_COLOR_PREFIX = "color_"
     private const val KEY_M3_PALETTE = "m3_palette"
     private const val KEY_MEDIA_ISOLATION = "media_isolation"
+    private const val KEY_FILE_ICON_COLORS = "file_icon_colors"
 
     private lateinit var prefs: SharedPreferences
 
@@ -69,6 +70,10 @@ object AppSettings {
     private val _mediaIsolation = MutableStateFlow(true)
     val mediaIsolation: StateFlow<Boolean> = _mediaIsolation.asStateFlow()
 
+    /** 文件列表/压缩包列表的类型图标是否使用颜色；关闭后统一灰白色。 */
+    private val _fileIconColors = MutableStateFlow(true)
+    val fileIconColors: StateFlow<Boolean> = _fileIconColors.asStateFlow()
+
     /** XjFileApp.onCreate 里调用一次。 */
     fun init(context: Context) {
         if (::prefs.isInitialized) return
@@ -84,6 +89,7 @@ object AppSettings {
         }
         _m3Palette.value = prefs.getBoolean(KEY_M3_PALETTE, false)
         _mediaIsolation.value = prefs.getBoolean(KEY_MEDIA_ISOLATION, true)
+        _fileIconColors.value = prefs.getBoolean(KEY_FILE_ICON_COLORS, true)
     }
 
     fun setAnimations(enabled: Boolean) {
@@ -111,6 +117,13 @@ object AppSettings {
         _mediaIsolation.value = enabled
         if (::prefs.isInitialized) {
             prefs.edit().putBoolean(KEY_MEDIA_ISOLATION, enabled).apply()
+        }
+    }
+
+    fun setFileIconColors(enabled: Boolean) {
+        _fileIconColors.value = enabled
+        if (::prefs.isInitialized) {
+            prefs.edit().putBoolean(KEY_FILE_ICON_COLORS, enabled).apply()
         }
     }
 

@@ -7,6 +7,8 @@ import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DefaultDataSource
 import com.cmzc.xj_file.app.core.cd.CddaDataSource
 import com.cmzc.xj_file.app.core.cd.WavHeader
+import com.cmzc.xj_file.app.core.archive.ArchiveEntryInfo
+import com.cmzc.xj_file.app.core.archive.ArchiveReader
 import com.cmzc.xj_file.app.core.disk.CdTrack
 import com.cmzc.xj_file.app.core.disk.PcScript
 import com.cmzc.xj_file.app.core.fs.RemoteFileSystem
@@ -178,6 +180,61 @@ sealed interface PlaybackSource {
             return context.contentResolver.openInputStream(uri)
                 ?: throw IOException("打不开 $uri")
         }
+    }
+
+    /**
+     * 压缩包里的图片条目。图片查看器/缩略图只走 [openInputStream]。
+     *
+     * 不在返回的流里持有 ZipFile：缩略图会并发加载，多个线程同时构造/遍历 ZipFile
+     * 在部分设备上会直接把 native 层打崩（readZip 的 nextElement）。
+     * 这里用进程内锁把读取串行化，并一次读成 ByteArray 后再返回流。
+     */
+    class ArchiveEntry(
+        private val archiveFile: File,
+        private val archiveName: String,
+        private val entry: ArchiveEntryInfo,
+        override val sizeBytes: Long,
+        override val displayName: String,
+    ) : PlaybackSource {
+        override val uri: Uri = Uri.parse(
+            "xj-archive://" + Uri.encode(archiveFile.absolutePath) + "/" + Uri.encode(entry.path)
+        )
+
+        override fun dataSourceFactory(context: Context): DataSource.Factory =
+            throw UnsupportedOperationException("压缩包图片不支持 Media3 数据源")
+
+        override suspend fun openInputStream(context: Context): InputStream {
+            val bytes = synchronized(ARCHIVE_IMAGE_LOCK) {
+                val reader = ArchiveReader.open(archiveFile, archiveName)
+                try {
+                    reader.openEntry(entry).use { input ->
+                        val out = java.io.ByteArrayOutputStream(
+                            entry.size.coerceIn(0L, 1024L * 1024L).toInt()
+                        )
+                        val buffer = ByteArray(64 * 1024)
+                        var total = 0L
+                        while (true) {
+                            val count = input.read(buffer)
+                            if (count < 0) break
+                            total += count
+                            if (total > MAX_ARCHIVE_IMAGE_BYTES) {
+                                throw IOException("压缩包图片过大")
+                            }
+                            out.write(buffer, 0, count)
+                        }
+                        out.toByteArray()
+                    }
+                } finally {
+                    runCatching { reader.close() }
+                }
+            }
+            return bytes.inputStream()
+        }
+    }
+
+    private companion object {
+        private val ARCHIVE_IMAGE_LOCK = Any()
+        private const val MAX_ARCHIVE_IMAGE_BYTES = 96L * 1024 * 1024
     }
 }
 

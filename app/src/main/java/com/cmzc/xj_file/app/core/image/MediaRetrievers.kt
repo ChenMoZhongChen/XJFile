@@ -22,6 +22,8 @@ internal fun openRetriever(context: Context, page: ViewerPage): MediaMetadataRet
             // 音频 CD 是一条裸 PCM 流，没有容器/标签可读；音频页会跳过取标签这一步。
             is PlaybackSource.Cdda ->
                 throw IllegalStateException("CD 音轨没有可读的容器标签")
+            is PlaybackSource.ArchiveEntry ->
+                throw IllegalStateException("压缩包条目没有 MediaMetadataRetriever 数据源")
         }
         return retriever
     } catch (t: Throwable) {

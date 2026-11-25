@@ -98,6 +98,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.cmzc.xj_file.app.core.fs.PathUtil
 import com.cmzc.xj_file.app.core.fs.RemoteFile
+import com.cmzc.xj_file.app.core.archive.ArchiveFormats
 import com.cmzc.xj_file.app.core.playback.MediaTypes
 import com.cmzc.xj_file.app.core.text.TextCodecImpl
 import com.cmzc.xj_file.app.core.text.TextFileTypes
@@ -210,7 +211,13 @@ private fun MainContent(vm: MainViewModel) {
     val pausedTasks by TransferManager.pausedTasks.collectAsStateWithLifecycle()
     val pendingOpen by vm.pendingOpen.collectAsStateWithLifecycle()
     val pendingViewer by vm.pendingViewer.collectAsStateWithLifecycle()
+    val pendingPdf by vm.pendingPdf.collectAsStateWithLifecycle()
     val pendingEditor by vm.pendingEditor.collectAsStateWithLifecycle()
+    val pendingArchive by vm.pendingArchive.collectAsStateWithLifecycle()
+    val archiveBusy by vm.archiveBusy.collectAsStateWithLifecycle()
+    val archiveProgress by vm.archiveProgress.collectAsStateWithLifecycle()
+    val archiveNotice by vm.archiveNotice.collectAsStateWithLifecycle()
+    val archiveTextPreview by vm.archiveTextPreview.collectAsStateWithLifecycle()
     val editorNotice by vm.editorNotice.collectAsStateWithLifecycle()
     val gallery by vm.gallery.collectAsStateWithLifecycle()
 
@@ -269,19 +276,30 @@ private fun MainContent(vm: MainViewModel) {
         vm.consumeEditorNotice()
     }
 
+    LaunchedEffect(archiveNotice) {
+        val message = archiveNotice ?: return@LaunchedEffect
+        android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_LONG).show()
+        vm.consumeArchiveNotice()
+    }
+
     // 本地栏点开：媒体 / 图片进内置查看页（和网络栏同一条链路）；文本/未知后缀进
     // 内置编辑器；其余（Office/PDF/常见二进制）仍交系统打开。
     val openLocal: (PanelSide, RemoteFile) -> Unit = remember(context, vm) {
         { side, item ->
-            when {
-                // 内置播放器没有提取器的容器（WMV/RM 等）：直接交给系统应用
-                MediaTypes.isExternalPlayable(item.name) -> openLocalFile(context, item)
-                MediaTypes.isPlayable(item.name) || MediaTypes.isImage(item.name) -> {
-                    // 数据源建不出来（理论上本地不会）就退回系统应用
-                    if (!vm.openViewerAt(side, item)) openLocalFile(context, item)
+            if (!item.isDirectory && ArchiveFormats.isArchive(item.name)) {
+                vm.openArchive(side, item)
+            } else {
+                when {
+                    TextFileTypes.isPdf(item.name) -> vm.openPdfLocal(side, item)
+                    // 内置播放器没有提取器的容器（WMV/RM 等）：直接交给系统应用
+                    MediaTypes.isExternalPlayable(item.name) -> openLocalFile(context, item)
+                    MediaTypes.isPlayable(item.name) || MediaTypes.isImage(item.name) -> {
+                        // 数据源建不出来（理论上本地不会）就退回系统应用
+                        if (!vm.openViewerAt(side, item)) openLocalFile(context, item)
+                    }
+                    TextFileTypes.shouldOpenAsText(item.name) -> vm.openTextEditor(side, item)
+                    else -> openLocalFile(context, item)
                 }
-                TextFileTypes.shouldOpenAsText(item.name) -> vm.openTextEditor(side, item)
-                else -> openLocalFile(context, item)
             }
         }
     }
@@ -320,6 +338,31 @@ private fun MainContent(vm: MainViewModel) {
     val taskDrawerIsOpen = taskDrawerProgress > 0.01f
 
     val focusedState = if (focusedSide == PanelSide.LEFT) left else right
+
+    var archiveDir by remember { mutableStateOf("") }
+    LaunchedEffect(pendingArchive?.archiveName) {
+        archiveDir = ""
+    }
+    val focusedArchive = pendingArchive?.takeIf { it.side == focusedSide }
+    val normalStats = rememberStats(focusedState.items)
+    val topPath = focusedArchive?.let { session ->
+        val parent = session.targetDir.trimEnd('/')
+        buildString {
+            append(parent)
+            if (parent.isNotEmpty()) append('/')
+            append(session.archiveName)
+            append('/')
+            if (archiveDir.isNotEmpty()) {
+                append(archiveDir)
+                append('/')
+            }
+        }
+    } ?: focusedState.currentPath
+    val topStats = focusedArchive?.let { session ->
+        val dirs = session.entries.count { it.isDirectory }
+        val files = session.entries.size - dirs
+        "文件夹：$dirs   文件：$files"
+    } ?: normalStats
     val anySelectionMode = left.selectionMode || right.selectionMode
     val focusedSelection = focusedState.selection
     val focusedSelectionCount = focusedSelection.size
@@ -388,8 +431,8 @@ private fun MainContent(vm: MainViewModel) {
             Scaffold(
                 topBar = {
                     AppTopBar(
-                        path = focusedState.currentPath,
-                        stats = rememberStats(focusedState.items),
+                        path = topPath,
+                        stats = topStats,
                         onMenu = { scope.launch { drawerAnim.animateTo(1f, tween(if (animationsOn) 420 else 0)) } },
                         onScrollToTop = {
                             if (focusedSide == PanelSide.LEFT) leftScrollTopTick++
@@ -406,9 +449,14 @@ private fun MainContent(vm: MainViewModel) {
                             )
                         },
                         onGallery = { vm.openGallery(focusedSide) },
+                        onExtractArchive = if (focusedArchive != null) {
+                            { vm.extractArchiveAll() }
+                        } else null,
                         onPathClick = {
-                            editingPathText = focusedState.currentPath
-                            editingPathSide = focusedSide
+                            if (focusedArchive == null) {
+                                editingPathText = focusedState.currentPath
+                                editingPathSide = focusedSide
+                            }
                         },
                         onSwipeRight = {
                             scope.launch { drawerAnim.animateTo(1f, tween(if (animationsOn) 420 else 0)) }
@@ -431,7 +479,21 @@ private fun MainContent(vm: MainViewModel) {
                         .padding(padding)
                 ) {
                     Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
-                        FilePanel(
+                        if (pendingArchive?.side == PanelSide.LEFT) {
+                            ArchiveScreen(
+                                session = pendingArchive!!,
+                                busy = archiveBusy,
+                                progress = archiveProgress,
+                                focused = focusedSide == PanelSide.LEFT,
+                                onFocus = { focusedSide = PanelSide.LEFT },
+                                currentDir = archiveDir,
+                                onCurrentDirChange = { archiveDir = it },
+                                onBack = { vm.closeArchive() },
+                                onExtractEntry = { entry -> vm.extractArchiveEntry(entry) },
+                                onPreviewEntry = { entry -> vm.previewArchiveEntry(entry) },
+                            )
+                        } else {
+                            FilePanel(
                             state = left,
                             focused = focusedSide == PanelSide.LEFT,
                             onFocus = { focusedSide = PanelSide.LEFT },
@@ -478,8 +540,11 @@ private fun MainContent(vm: MainViewModel) {
                             onRefresh = { vm.refresh(PanelSide.LEFT) },
                             scrollToTopTick = leftScrollTopTick,
                             onCopyPath = onCopyPath,
-                            onDisconnect = { vm.disconnectCurrent(PanelSide.LEFT) }
+                            onDisconnect = { vm.disconnectCurrent(PanelSide.LEFT) },
+                            loadThumbnail = { item, size -> vm.loadThumbnail(PanelSide.LEFT, item, size) },
+                            panelKey = "left"
                         )
+                        }
                     }
                     Box(
                         modifier = Modifier
@@ -488,7 +553,21 @@ private fun MainContent(vm: MainViewModel) {
                             .background(MaterialTheme.colorScheme.outlineVariant)
                     )
                     Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
-                        FilePanel(
+                        if (pendingArchive?.side == PanelSide.RIGHT) {
+                            ArchiveScreen(
+                                session = pendingArchive!!,
+                                busy = archiveBusy,
+                                progress = archiveProgress,
+                                focused = focusedSide == PanelSide.RIGHT,
+                                onFocus = { focusedSide = PanelSide.RIGHT },
+                                currentDir = archiveDir,
+                                onCurrentDirChange = { archiveDir = it },
+                                onBack = { vm.closeArchive() },
+                                onExtractEntry = { entry -> vm.extractArchiveEntry(entry) },
+                                onPreviewEntry = { entry -> vm.previewArchiveEntry(entry) },
+                            )
+                        } else {
+                            FilePanel(
                             state = right,
                             focused = focusedSide == PanelSide.RIGHT,
                             onFocus = { focusedSide = PanelSide.RIGHT },
@@ -535,8 +614,11 @@ private fun MainContent(vm: MainViewModel) {
                             onRefresh = { vm.refresh(PanelSide.RIGHT) },
                             scrollToTopTick = rightScrollTopTick,
                             onCopyPath = onCopyPath,
-                            onDisconnect = { vm.disconnectCurrent(PanelSide.RIGHT) }
+                            onDisconnect = { vm.disconnectCurrent(PanelSide.RIGHT) },
+                            loadThumbnail = { item, size -> vm.loadThumbnail(PanelSide.RIGHT, item, size) },
+                            panelKey = "right"
                         )
+                        }
                     }
                 }
             }
@@ -1433,6 +1515,14 @@ private fun MainContent(vm: MainViewModel) {
         }
     }
 
+    // 压缩包浏览页：盖在文件列表上，返回后回到原面板。
+    archiveTextPreview?.let { preview ->
+        ArchiveTextPreviewDialog(
+            preview = preview,
+            onClose = { vm.closeArchiveTextPreview() },
+        )
+    }
+
     // 类相册视图：整屏 4 列网格。查看页开着时盖在它上面，从查看页返回仍回到相册。
     gallery?.let { g ->
         GalleryScreen(
@@ -1487,8 +1577,16 @@ private fun MainContent(vm: MainViewModel) {
             document = session.document,
             encodingOptions = TextCodecImpl.supportedEncodings,
             onBack = { vm.closeEditor() },
-            onSave = { save -> vm.saveEditor(session, save) },
+            onSave = { save, policy -> vm.saveEditor(session, save, policy) },
             onEncodingSelected = { name -> vm.changeEditorEncoding(name) },
+        )
+    }
+
+    pendingPdf?.let { request ->
+        PdfViewerScreen(
+            request = request,
+            onClose = { vm.closePdf() },
+            onOpenSystem = { openCachedFile(context, request.file, request.title) },
         )
     }
 }

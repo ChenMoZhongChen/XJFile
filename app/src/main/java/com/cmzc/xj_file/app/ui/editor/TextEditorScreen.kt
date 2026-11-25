@@ -70,6 +70,8 @@ import com.cmzc.xj_file.app.core.text.LineEnding
 import com.cmzc.xj_file.app.core.text.TextBom
 import com.cmzc.xj_file.app.core.text.TextDocument
 import com.cmzc.xj_file.app.ui.components.AppDropdownMenu
+import com.cmzc.xj_file.app.vm.EditorSavePolicy
+import com.cmzc.xj_file.app.vm.EditorSaveResult
 import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
 
@@ -85,6 +87,9 @@ data class EditorSaveRequest(
     val bom: TextBom,
     val lineEnding: LineEnding,
 )
+
+/** 超过这个字符数改用按行 LazyColumn，避免一个 BasicTextField 装整篇。 */
+private const val LARGE_EDITOR_CHARS = 200_000
 
 /**
  * 全屏文本编辑器：顶栏（返回 / 文件名 / 未保存标记 / 查找 / 编码菜单 / 保存）+ 正文 + 查找替换条。
@@ -112,19 +117,22 @@ fun TextEditorScreen(
      * 写盘失败/编码不可映射时必须返回 false，让编辑器保留「未保存」，
      * 否则用户按返回会被当成没有修改，直接丢内容。
      */
-    onSave: suspend (EditorSaveRequest) -> Boolean,
+    onSave: suspend (EditorSaveRequest, EditorSavePolicy) -> EditorSaveResult,
     onEncodingSelected: (String) -> Unit = {},
 ) {
     // 文档对象换了（换文件 / 换编码重新解码）就重建状态：旧文本、旧基准、查找条
     // 都不再对应当前文件，继续留着只会让脏标记和编码显示错乱。
     val state = remember(document) { TextEditorState(document.text) }
     val scope = rememberCoroutineScope()
+    val largeMode = document.text.length >= LARGE_EDITOR_CHARS
     var showDiscardDialog by remember { mutableStateOf(false) }
     // 非空 = 用户选了编码但当前有未保存修改，先弹「会重新解码/丢修改」的确认框
     var pendingEncoding by remember { mutableStateOf<String?>(null) }
     // 保存中/保存失败：失败时保留脏标记，底栏给一句人话
     var saving by remember { mutableStateOf(false) }
     var saveError by remember { mutableStateOf<String?>(null) }
+    // 保存前发现文件被别的程序改过：先让用户决定，不能静默覆盖
+    var showSaveConflict by remember { mutableStateOf(false) }
 
     // 编码菜单显示中文名；编码内核里找不到对应项时退回规范名，保证界面永远有字
     val encodingLabel = remember(document.encoding, encodingOptions) {
@@ -143,7 +151,7 @@ fun TextEditorScreen(
      * 如果像以前那样先 markSaved() 再回调，失败后返回键不会提示，用户会丢内容。
      * 这里把「保存中」也挡住重复点击，失败只在底栏说人话，不弹英文异常。
      */
-    fun saveDocument() {
+    fun saveDocument(policy: EditorSavePolicy = EditorSavePolicy.NORMAL) {
         if (saving) return
         val request = EditorSaveRequest(
             text = state.value.text,
@@ -154,11 +162,12 @@ fun TextEditorScreen(
         saving = true
         saveError = null
         scope.launch {
-            val ok = runCatching { onSave(request) }.getOrDefault(false)
-            if (ok) {
-                state.markSaved()
-            } else {
-                saveError = "保存失败，当前内容还没有写出去"
+            val result = runCatching { onSave(request, policy) }
+                .getOrDefault(EditorSaveResult.FAILED)
+            when (result) {
+                EditorSaveResult.SAVED -> state.markSaved()
+                EditorSaveResult.CONFLICT -> showSaveConflict = true
+                EditorSaveResult.FAILED -> saveError = "保存失败，当前内容还没有写出去"
             }
             saving = false
         }
@@ -207,11 +216,29 @@ fun TextEditorScreen(
             FindReplaceBar(state = state, onClose = { state.toggleFind() })
             EditorDivider()
         }
-        EditorBody(
-            state = state,
-            fileName = document.fileName,
-            modifier = Modifier.weight(1f),
-        )
+        if (largeMode) {
+            Text(
+                text = "大文件模式：窗口化编辑，语法高亮已关闭",
+                fontSize = 10.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .padding(horizontal = 12.dp, vertical = 4.dp),
+            )
+        }
+        if (largeMode) {
+            LargeTextEditorBody(
+                state = state,
+                modifier = Modifier.weight(1f),
+            )
+        } else {
+            EditorBody(
+                state = state,
+                fileName = document.fileName,
+                modifier = Modifier.weight(1f),
+            )
+        }
         EditorStatusBar(
             state = state,
             encodingLabel = encodingLabel,
@@ -255,6 +282,34 @@ fun TextEditorScreen(
             },
             dismissButton = {
                 TextButton(onClick = { pendingEncoding = null }) { Text("取消") }
+            },
+        )
+    }
+
+    if (showSaveConflict) {
+        AlertDialog(
+            onDismissRequest = { showSaveConflict = false },
+            title = { Text("文件已在外部修改") },
+            text = {
+                Text(
+                    "打开这个文件之后，它在磁盘/服务器上又被改过或删除过。" +
+                        "直接覆盖会丢掉外部修改；也可以先把当前内容保存成本地副本。"
+                )
+            },
+            confirmButton = {
+                Row {
+                    TextButton(onClick = {
+                        showSaveConflict = false
+                        saveDocument(EditorSavePolicy.LOCAL_COPY)
+                    }) { Text("保存本地副本") }
+                    TextButton(onClick = {
+                        showSaveConflict = false
+                        saveDocument(EditorSavePolicy.OVERWRITE)
+                    }) { Text("仍然覆盖") }
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showSaveConflict = false }) { Text("取消") }
             },
         )
     }

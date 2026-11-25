@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
@@ -47,7 +48,14 @@ data class TransferTask(
     /** 断点记录失效、被静默改成了从头重传（不弹提示，只在日志/属性里可见）。 */
     val silentlyRestarted: Boolean = false,
     /** 校验通过后的 sha256（拿不到源哈希时为 null）。 */
-    val sha256: String? = null
+    val sha256: String? = null,
+    /** 恢复任务时的文件系统标识：local / smb:host / sftp:host。 */
+    val srcTag: String = "",
+    val dstTag: String = "",
+    /** 这是移动批次；恢复完成后需要补做删源收尾。 */
+    val isMove: Boolean = false,
+    /** 移动批次的顶层源路径；一个目录移动的所有文件都指向这个目录。 */
+    val topSrcPath: String = "",
 ) {
     val progress: Float
         get() = if (totalBytes > 0) (transferred.toFloat() / totalBytes).coerceIn(0f, 1f) else 0f
@@ -106,6 +114,14 @@ object TransferManager {
     @Volatile
     private var appContext: Context? = null
 
+    /** 启动时从磁盘读出的未完成任务；等 ViewModel 注册 fs 解析器后再入队。 */
+    private var savedRecords: List<TransferTask>? = null
+
+    private var restoreResolver: ((String) -> RemoteFileSystem?)? = null
+
+    @Volatile
+    private var lastPersistAt = 0L
+
     /** 「延迟拉前台服务」用的 Job：短任务在它跑起来之前就结束了，就不用拉。 */
     private var serviceStartJob: Job? = null
 
@@ -156,11 +172,12 @@ object TransferManager {
      * 结果留下一条 ONGOING 且用户划不掉的通知。
      *
      * 注意：服务只负责「续命 + 展示」，传输仍跑在本对象的 scope 里。
-     * 进程被系统杀掉后传输照样中断（本轮不做持久化/重启恢复）。
+     * 进程被杀后，活跃任务由 [TransferStore] 落盘，下次启动重新入队并续传。
      */
     fun init(context: Context) {
         if (appContext != null) return
         appContext = context.applicationContext
+        savedRecords = runCatching { TransferStore.load(context) }.getOrDefault(emptyList())
         // distinctUntilChanged：进度回调 200ms 一次，不能让系统调用也跟着 200ms 一次
         scope.launch {
             tasks.map { list -> list.any { it.isActive } }
@@ -184,6 +201,87 @@ object TransferManager {
                     }
                 }
         }
+    }
+
+    /**
+     * ViewModel 在连接列表加载好之后注册：按持久化的 tag 重新建出文件系统。
+     * 解析器就绪后自动恢复上次没传完的任务（从 ResumeStore 的断点续传）。
+     */
+    fun registerRestoreResolver(resolver: (String) -> RemoteFileSystem?) {
+        restoreResolver = resolver
+        restorePendingTasks()
+    }
+
+    private fun restorePendingTasks() {
+        val records = savedRecords ?: return
+        val resolver = restoreResolver ?: return
+        savedRecords = null
+        if (records.isEmpty()) return
+        var restored = 0
+        val restoredMoves = mutableListOf<TransferTask>()
+        records.forEach { saved ->
+            val srcFs = runCatching { resolver(saved.srcTag) }.getOrNull() ?: return@forEach
+            val dstFs = runCatching { resolver(saved.dstTag) }.getOrNull() ?: return@forEach
+            val task = saved.copy(status = TransferStatus.PENDING, speedBytesPerSec = 0)
+            _tasks.update { list ->
+                if (list.any { it.id == task.id }) list else list + task
+            }
+            synchronized(lock) {
+                queue.addLast(
+                    JobSpec(
+                        taskId = task.id,
+                        batchId = task.batchId,
+                        srcFs = srcFs,
+                        srcPath = task.srcPath,
+                        dstFs = dstFs,
+                        dstPath = task.dstPath,
+                    )
+                )
+            }
+            if (task.isMove && task.topSrcPath.isNotBlank()) {
+                restoredMoves += task
+            }
+            restored++
+        }
+        Log.i(TAG, "恢复 $restored 个未完成传输任务")
+        persistTasks(force = true)
+        scheduleRestoredMoveCleanup(restoredMoves)
+        pump()
+    }
+
+    /**
+     * 进程被杀后恢复的移动任务没有原来的 startEnqueue 协程，必须在这里补做删源：
+     * 该顶层源下的所有文件都 COMPLETED 才删；任务被用户移除/失败/取消都不删。
+     */
+    private fun scheduleRestoredMoveCleanup(tasks: List<TransferTask>) {
+        if (tasks.isEmpty()) return
+        val groups = tasks.groupBy { Triple(it.srcTag, it.topSrcPath, it.batchId) }
+        groups.forEach { (key, group) ->
+            val ids = group.map { it.id }.toSet()
+            val resolver = restoreResolver ?: return@forEach
+            val srcFs = runCatching { resolver(key.first) }.getOrNull() ?: return@forEach
+            scope.launch {
+                allSettled(ids).first { it }
+                val snapshot = _tasks.value
+                val live = ids.mapNotNull { id -> snapshot.firstOrNull { it.id == id } }
+                if (live.size != ids.size || live.any { it.status != TransferStatus.COMPLETED }) {
+                    return@launch
+                }
+                val source = key.second
+                runCatching { srcFs.delete(source) }
+                    .onSuccess { Log.i(TAG, "恢复移动完成，已删源 $source") }
+                    .onFailure { Log.w(TAG, "恢复移动删源失败 $source: ${it.message}") }
+            }
+        }
+    }
+
+    /** 任务状态/进度变化时落盘；1.5 秒节流，收尾强制写。 */
+    private fun persistTasks(force: Boolean = false) {
+        val context = appContext ?: return
+        val now = System.currentTimeMillis()
+        if (!force && now - lastPersistAt < 1500L) return
+        lastPersistAt = now
+        TransferStore.save(context, _tasks.value)
     }
 
     // ===== 暂停 / 恢复（批次级 + 单文件级）=====
@@ -273,7 +371,9 @@ object TransferManager {
         srcPath: String,
         dstFs: RemoteFileSystem,
         dstPath: String,
-        totalBytes: Long = -1L
+        totalBytes: Long = -1L,
+        isMove: Boolean = false,
+        topSrcPath: String = "",
     ): String {
         val task = TransferTask(
             id = UUID.randomUUID().toString(),
@@ -282,13 +382,18 @@ object TransferManager {
             name = displayName,
             srcPath = srcPath,
             dstPath = dstPath,
-            totalBytes = totalBytes
+            totalBytes = totalBytes,
+            srcTag = srcFs.tag,
+            dstTag = dstFs.tag,
+            isMove = isMove,
+            topSrcPath = topSrcPath,
         )
         _tasks.update { it + task }
         synchronized(lock) {
             queue.addLast(JobSpec(task.id, task.batchId, srcFs, srcPath, dstFs, dstPath))
         }
         Log.d(TAG, "enqueue ${task.id} ${srcPath} -> ${dstPath}")
+        persistTasks(force = true)
         tryStartNext()
         return task.id
     }
@@ -325,6 +430,7 @@ object TransferManager {
         }
         job?.cancel()
         _tasks.update { list -> list.filterNot { it.id == taskId } }
+        persistTasks(force = true)
     }
 
     fun cancelAll() {
@@ -340,6 +446,7 @@ object TransferManager {
                 else it
             }
         }
+        persistTasks(force = true)
     }
 
     /** 取消某个批次里所有还没结束的子任务。 */
@@ -375,6 +482,7 @@ object TransferManager {
         }
         jobs.forEach { it.cancel() }
         _tasks.update { list -> list.filterNot { it.batchId == batchId } }
+        persistTasks(force = true)
     }
 
 
@@ -385,6 +493,7 @@ object TransferManager {
                 it.status == TransferStatus.PENDING || it.status == TransferStatus.RUNNING
             }
         }
+        persistTasks(force = true)
     }
 
     /**
@@ -553,6 +662,7 @@ object TransferManager {
                  */
                 synchronized(lock) { queue.addLast(spec) }
             }
+            persistTasks(force = true)
             pump()
         }
     }
@@ -611,5 +721,6 @@ object TransferManager {
         _tasks.update { list ->
             list.map { if (it.id == id) transform(it) else it }
         }
+        persistTasks()
     }
 }

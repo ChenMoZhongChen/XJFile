@@ -18,6 +18,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -54,7 +55,9 @@ fun DriveRow(
     val bg = when {
         highlighted -> MaterialTheme.colorScheme.tertiaryContainer
         selected && showSelection -> MaterialTheme.colorScheme.primaryContainer
-        else -> MaterialTheme.colorScheme.surface
+        // 不选中时透明，跟随整个文件栏的 focused/unfocused 背景，
+        // 否则 SFTP 根目录的磁盘行会永远是一块浅色 surface，和未选中面板不一致。
+        else -> Color.Transparent
     }
     Row(
         modifier = modifier
