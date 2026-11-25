@@ -1,5 +1,9 @@
 # XJ File（新金文件管理器）
 
+<a id="zh-cn"></a>
+
+[简体中文](#zh-cn) | [English](#en-us)
+
 > 一个为 Android 设计的双栏文件管理器：本地存储、SMB、SFTP，压缩包、PDF、图片、音视频内置查看，CD/DVD/BD/M-DISC 探测，窗口化大文本编辑，以及可恢复的传输队列。
 
 ![Version](https://img.shields.io/badge/version-6.0.0.180805736-2C6FDB)
@@ -538,3 +542,548 @@ Copyright (c) 2026 XJoffice ChenMoZhongChen
 - 第三方声明：[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)
 - 贡献指南：[CONTRIBUTING.md](CONTRIBUTING.md)
 - 许可证：[LICENSE](LICENSE)
+
+---
+
+# XJ File (Xinjin File Manager)
+
+<a id="en-us"></a>
+
+[简体中文](#zh-cn) | [English](#en-us)
+
+> A dual-pane Android file manager for local storage, SMB, and SFTP, with built-in archive browsing, PDF/image/audio/video previews, CD/DVD/BD/M-DISC detection, a windowed large-text editor, and a recoverable transfer queue.
+
+![Version](https://img.shields.io/badge/version-6.0.0.180805736-2C6FDB)
+![Android](https://img.shields.io/badge/Android-10%2B-3DDC84?logo=android&logoColor=white)
+![Kotlin](https://img.shields.io/badge/Kotlin-2.0.21-7F52FF?logo=kotlin&logoColor=white)
+![Compose](https://img.shields.io/badge/Jetpack%20Compose-Material%203-4285F4?logo=jetpackcompose&logoColor=white)
+![License](https://img.shields.io/badge/license-MIT-yellow)
+
+---
+
+## Contents
+
+- [Introduction](#en-intro)
+- [Current Version](#en-version)
+- [Feature Overview](#en-features)
+- [Dual-pane File Management](#en-dual-pane)
+- [Transfer System](#en-transfer)
+- [Archives](#en-archives)
+- [Viewers](#en-viewers)
+- [Icons and Thumbnails](#en-icons)
+- [Text Editor](#en-editor)
+- [CD, DVD, BD, and M-DISC](#en-optical)
+- [Settings and Appearance](#en-settings)
+- [Tech Stack](#en-stack)
+- [Code Structure](#en-structure)
+- [Build](#en-build)
+- [Installation and Permissions](#en-install)
+- [Known Limitations](#en-limits)
+- [License](#en-license)
+- [Acknowledgements](#en-thanks)
+- [Links](#en-links)
+
+---
+
+<a id="en-intro"></a>
+
+## Introduction
+
+XJ File is a dual-pane file manager that puts local and remote file management in one screen:
+
+- either pane can be local storage, an SMB share, or an SFTP host;
+- copy, move, compress, extract, preview, and edit directly between panes;
+- no need to download a remote file before working with it;
+- large files, text, archives, media, and transfers each have their own processing path, so one scenario does not slow down the whole app.
+
+It is not a demo that puts everything into one list. Files are handled according to type and source:
+
+- images/videos use thumbnails and Media3;
+- PDFs use the system `PdfRenderer`;
+- text uses encoding detection and the editor;
+- archives use Apache Commons Compress / JDK ZIP / XZ;
+- remote APK/EXE icons read only the required bytes, not the whole file;
+- transfer tasks are persisted and can be restored after process death.
+
+---
+
+<a id="en-version"></a>
+
+## Current Version
+
+| Item | Value |
+|---|---|
+| Version name | `6.0.0.180805736` |
+| versionCode | `180805736` |
+| Package | `com.cmzc.xj_file.app` |
+| Minimum Android | Android 10 (API 29) |
+| Target SDK | 34 |
+| Compile SDK | 34 |
+| Current Release | `XJFile-6.0.0.180805736-release.apk` |
+| Release SHA-256 | `E19A1F407110B9FC093EB6E89179E6BFAFDDDEB9E108C90BEC27AC7BCCAAB887` |
+
+GitHub Releases:
+
+<https://github.com/ChenMoZhongChen/XJFile/releases>
+
+### What's New in 6.0
+
+- Large-text editing is now windowed at 80 lines per page instead of a per-line dialog;
+- cross-page drag selection and continuous cursor movement;
+- remote text saving detects mtime/size conflicts and offers local copy, overwrite, or cancel;
+- archives can be browsed, previewed, and extracted file-by-file or in full;
+- PDFs use the built-in viewer;
+- image/video thumbnails decode at display size with bounded concurrency;
+- APK/EXE files use their real icons, with SMB/SFTP reading only necessary bytes;
+- active transfers are persisted and restored after process death; restored moves finish source cleanup;
+- the icon-color toggle only affects synthetic icons; detected real icons keep their original colors;
+- archive icons no longer show ZIP text, and extension letters are cut out.
+
+---
+
+<a id="en-features"></a>
+
+## Feature Overview
+
+| Module | Capabilities |
+|---|---|
+| File management | Dual pane, local/SMB/SFTP, copy/move/delete/rename/create/properties/share |
+| Transfers | Multiple lanes, pause/resume/cancel, conflict handling, resume, persistence, restored move cleanup |
+| Archives | Create/read ZIP/ZIPX/TAR/TGZ/7Z/GZ/XZ; browse, preview, extract |
+| Viewers | PDF, images, gallery, audio, video, background audio, video thumbnail strip |
+| Text | Encoding detection, syntax highlighting, find/replace, save conflict handling, 16 MB limit, windowed large files |
+| Icons | Image/video thumbnails, real APK/EXE icons, local and SMB/SFTP on-demand reads |
+| Optical | CD/DVD/BD/M-DISC label, capacity, audio CD TOC, DVD/BD video detection |
+| Appearance | Dark/light theme, module colors, icon color toggle, animation toggle |
+
+---
+
+<a id="en-dual-pane"></a>
+
+## Dual-pane File Management
+
+- Each pane keeps its own path, history, back/forward stacks, and focus;
+- local storage, SMB, and SFTP are supported in either pane;
+- copy, move, compare, and jump between panes;
+- directories are expanded before transfer to preserve relative structure;
+- conflict handling: overwrite, skip, rename, keep both;
+- horizontal-swipe multi-select, long-press menu, select all, copy path;
+- recent paths, shortcut folders, and frequently used folders;
+- sorting by name, size, or time;
+- file properties, sharing, and open-with selection;
+- long-press "Open with" to force the text editor or a system app.
+
+Remote and local paths share the same pane UI, but use different `RemoteFileSystem` implementations underneath.
+
+---
+
+<a id="en-transfer"></a>
+
+## Transfer System
+
+Transfers are managed by the custom `TransferManager`, not by UI coroutines.
+
+### Queue and Concurrency
+
+- one copy/move operation = one batch;
+- files within a batch run in parallel, up to three lanes by default;
+- small files are not completely blocked by a large file;
+- batch-level and file-level pause/resume/cancel;
+- progress, speed, and remaining time in the task drawer.
+
+### Resume
+
+- source/target sizes and checkpoints are recorded before transfer;
+- protocols that support server-side offset reads/writes can truly resume;
+- if the target protocol cannot append, the transfer safely restarts from zero instead of truncating existing data;
+- SHA-256 is computed and verified after transfer;
+- a task is not marked complete if verification fails.
+
+### Conflicts
+
+Overwrite, skip, auto-rename, and keep-both are decided before queuing, not halfway through a transfer.
+
+### Restore After Process Death
+
+- active tasks are written to `SharedPreferences`;
+- after restart, `srcTag` / `dstTag` recreate the file systems and re-queue the tasks;
+- already completed files are not transferred again;
+- **restored move tasks** delete the source after every file under that top-level source completes and verifies;
+- if any file fails, is cancelled, or is removed by the user, the source is preserved.
+
+---
+
+<a id="en-archives"></a>
+
+## Archives
+
+### Read
+
+- ZIP / ZIPX
+- TAR
+- TGZ / TAR.GZ
+- 7Z
+- GZ
+- XZ
+
+Archives can be browsed like directories:
+
+- text preview/editing;
+- image preview;
+- PDF preview;
+- audio/video playback;
+- single-file extraction;
+- extract all to the opposite pane.
+
+### Create
+
+- ZIP
+- ZIPX
+- TAR
+- TGZ
+- 7Z
+- GZ
+- XZ
+
+GZ/XZ are single-file formats; use TAR/TGZ for multiple files.
+
+Archives can be created locally or remotely. A remote archive is built in the local cache first and then uploaded, avoiding SFTP read/write contention on one channel.
+
+### Not Supported
+
+- RAR creation: proprietary format, not implemented;
+- LZH / ZPAQ creation: open formats, but no suitable Android writer is available;
+- RAR / LZH / ZPAQ reading: no built-in parser; the app explicitly reports this rather than pretending.
+
+---
+
+<a id="en-viewers"></a>
+
+## Viewers
+
+### PDF
+
+- Android `PdfRenderer`;
+- page buttons and horizontal swipe;
+- no external PDF app required;
+- pages are rendered on demand.
+
+### Images
+
+- single-image viewer;
+- gallery grid;
+- mixed image/video browsing;
+- zoom and swipe navigation;
+- common image formats plus SVG/TIFF/ICO/RAW preview paths.
+
+### Audio / Video
+
+- Media3 ExoPlayer;
+- thumbnail strip on the video page;
+- the audio page reuses the CD page layout;
+- background audio: foreground service + MediaSession + notification controls;
+- open media from local, SMB, or SFTP;
+- remote playback supports progressive download and seeking through `PlaybackSource`.
+
+---
+
+<a id="en-icons"></a>
+
+## Icons and Thumbnails
+
+### Image/Video Thumbnails
+
+- shown directly in the file-list icon slot;
+- only composed/visible rows request thumbnails;
+- local images use `BitmapFactory` with `inSampleSize` at 2× the displayed pixel size;
+- videos use `MediaMetadataRetriever`;
+- three image lanes and one video lane;
+- in-memory cache of up to 160 small bitmaps;
+- off-screen requests can be cancelled.
+
+### Real APK / EXE Icons
+
+- **Local APK**: read the APK resource table first, then fall back to `PackageManager`;
+- **Local EXE**: parse PE `RT_GROUP_ICON` / `RT_ICON`, including PNG and common DIB bitmaps;
+- **SMB / SFTP APK**: read the ZIP central directory, then only the candidate launcher entries;
+- **SMB / SFTP EXE**: read only the PE header and resource section, then use a sparse temp file for parsing;
+- remote APK/EXE files are not downloaded in full;
+- if no real icon exists, fall back to the default APK robot or Windows generic application icon.
+
+**Color rules:**
+
+- detected real APK/EXE icons **always keep their original colors**, regardless of the "file icon colors" toggle;
+- only synthetic default icons, extension backgrounds, and archive/media type icons follow the toggle;
+- when the toggle is off, synthetic icons are desaturated while real icons are unchanged.
+
+### File-type Colors
+
+- text/code: blue
+- PDF: red
+- archive: brown, no ZIP text
+- image: green
+- audio: orange
+- video: purple
+- BIN/Office/APK/unknown binary: gray
+- extension letters are cut out of the icon, not drawn as a white sticker
+
+---
+
+<a id="en-editor"></a>
+
+## Text Editor
+
+### Encoding
+
+- BOM priority;
+- ICU4J detection;
+- strict UTF-8 validation;
+- UTF-8, UTF-16, UTF-32, GB18030, BIG5, Shift_JIS, EUC-JP, EUC-KR, Windows-1252, ISO-8859-1;
+- preserves the original BOM and newline style (LF / CRLF / CR);
+- compares remote mtime/size before saving and offers:
+  - save a local copy;
+  - overwrite anyway;
+  - cancel.
+
+### Editing
+
+- line numbers;
+- find/replace;
+- syntax highlighting;
+- unsaved-change confirmation;
+- encoding switch;
+- save;
+- known text suffixes open directly; unknown suffixes are treated as text by default;
+- Office files are not routed to the text editor; PDFs use the built-in viewer.
+
+### Large-file Mode
+
+Above 200K characters:
+
+- 80 lines per page;
+- `LazyColumn` composes only pages near the viewport;
+- no full-document `BasicTextField`;
+- syntax highlighting is disabled;
+- maximum file size is 16 MB;
+- pages are editable in place;
+- cross-page drag selection merges the next/previous page at the boundary;
+- continuous cursor movement: left/right at a page boundary merges the adjacent page;
+- pages are joined back into the full text on save.
+
+---
+
+<a id="en-optical"></a>
+
+## CD, DVD, BD, and M-DISC
+
+Optical detection runs through PC-side scripts over an SFTP connection; it does not require a directly attached Android optical drive.
+
+- disc label, capacity, and media type;
+- audio CD TOC with per-track duration from sector counts;
+- audio CD playback, including background playback;
+- DVD/BD video detection;
+- M-DISC identification;
+- parallel probing with timeouts so an empty drive does not slow the disk list;
+- PC scripts live in `app/src/main/assets/pc/`.
+
+---
+
+<a id="en-settings"></a>
+
+## Settings and Appearance
+
+- dark/light/follow-system;
+- module colors (folders, buttons);
+- file icon color toggle;
+- global animation toggle;
+- frequently used folders;
+- network connections (SMB / SFTP);
+- transfer task drawer;
+- About page, open-source notices, license details;
+- built-in source package export.
+
+---
+
+<a id="en-stack"></a>
+
+## Tech Stack
+
+| Purpose | Technology |
+|---|---|
+| Language / UI | Kotlin 2.0.21, Jetpack Compose, Material 3 |
+| Local/remote files | LocalFileSystem, SMBJ, JSch (SFTP), jcifs-ng |
+| Transfers | Custom `TransferManager`, foreground service, resume |
+| Media | AndroidX Media3 / ExoPlayer |
+| Text encoding | ICU4J |
+| Archives | JDK ZIP, Apache Commons Compress, XZ for Java |
+| Images | Android ImageDecoder, AndroidSVG, TIFF/ICO/RAW preview |
+| Build | AGP 8.13.0, Gradle 9.5.0 |
+
+---
+
+<a id="en-structure"></a>
+
+## Code Structure
+
+```text
+app/src/main/java/com/cmzc/xj_file/app/
+├─ vm/MainViewModel.kt            # panes, viewers, editor, archives, transfers
+├─ core/
+│  ├─ fs/                         # local / SMB / SFTP
+│  ├─ transfer/                   # transfer, resume, conflicts, task persistence
+│  ├─ playback/                   # Media3, foreground service, media sources
+│  ├─ text/                       # encoding core, text types
+│  ├─ archive/                    # archive formats, readers, writers
+│  ├─ disk/                       # optical/disk detection
+│  ├─ image/                      # thumbnails, APK/EXE icons
+│  └─ cd/                         # CD TOC, WAV/PCM
+├─ ui/
+│  ├─ MainScreen.kt               # main screen
+│  ├─ components/                 # panes, task drawer, thumbnail strip
+│  ├─ editor/                     # text editor, highlighting, paging
+│  ├─ player/                     # video/audio pages
+│  ├─ gallery/                    # gallery grid
+│  └─ settings/                   # settings, notices, licenses
+└─ assets/pc/                     # PC-side disk/optical/M-DISC scripts
+```
+
+---
+
+<a id="en-build"></a>
+
+## Build
+
+### Requirements
+
+- JDK 17
+- Android SDK Platform 34
+- Android Build Tools
+- Windows / macOS / Linux
+
+### Debug
+
+Windows:
+
+```bat
+gradlew.bat --no-watch-fs assembleDebug
+```
+
+macOS / Linux:
+
+```bash
+./gradlew assembleDebug
+```
+
+Output:
+
+```text
+app/build/outputs/apk/debug/app-debug.apk
+```
+
+### Release
+
+```bat
+gradlew.bat --no-watch-fs assembleRelease
+```
+
+Output:
+
+```text
+app/build/outputs/apk/release/app-release.apk
+```
+
+Release builds need your own signing configuration. Do not commit the keystore or passwords.
+
+On Windows, keep `--no-watch-fs` to avoid Gradle file-system watching getting stuck on some machines.
+
+---
+
+<a id="en-install"></a>
+
+## Installation and Permissions
+
+After installation, grant "All files access" (MANAGE_EXTERNAL_STORAGE); without it, local storage cannot be browsed.
+
+Main permissions:
+
+- `MANAGE_EXTERNAL_STORAGE`: local file management;
+- `FOREGROUND_SERVICE` / `FOREGROUND_SERVICE_DATA_SYNC`: background transfers;
+- `FOREGROUND_SERVICE_MEDIA_PLAYBACK`: background audio;
+- `POST_NOTIFICATIONS`: transfer/playback notifications;
+- `WAKE_LOCK`: keep CPU/Wi-Fi during transfers.
+
+SMB/SFTP connection settings stay on the device and are not included in the APK or source package.
+
+---
+
+<a id="en-limits"></a>
+
+## Known Limitations
+
+- **No built-in Office rendering**: doc, docx, xls, xlsx, ppt, pptx still use system apps;
+- **RAR / LZH / ZPAQ creation**: RAR is proprietary; LZH/ZPAQ have no suitable Android writer;
+- **RAR / LZH / ZPAQ reading**: no built-in parser; the app reports unsupported;
+- **Large text editor**: 16 MB maximum; syntax highlighting is off above 200K characters;
+- **Remote APK icons**: candidate icons are found by `ic_launcher` / `app_icon` / `icon` / `logo` names; an adaptive-only APK without a legacy PNG/WebP may fall back to the default icon;
+- **SMB/SFTP icon reads**: require server-side offset reads; implementations without it fall back to the default icon;
+- **Optical detection**: requires PC-side scripts and an SFTP connection, not a direct Android optical drive;
+- **Transfer restore**: restored move cleanup is implemented; if the user removes or cancels a task during restore, the source is preserved;
+- **Large-text cross-page**: implemented by merging pages; page count decreases while selecting, which is intended for selection rather than long-term pagination.
+
+---
+
+<a id="en-license"></a>
+
+## License
+
+XJ File's own code is released under the [MIT License](LICENSE).
+
+Copyright (c) 2026 XJoffice ChenMoZhongChen
+
+### Logo and Brand Graphics Exception
+
+The Xinjin File Manager / XJ File application icon, logo, and related brand graphics are **not** covered by the MIT License. Copyright remains with XJoffice ChenMoZhongChen. They may not be used as icons, branding, promotional material, or derivative artwork for other projects without written permission.
+
+### Third-party Components
+
+Third-party components remain under their own licenses and are not re-licensed by this project's MIT license. See:
+
+- [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)
+- In-app "Settings → About → Open-source notices"
+- APK `assets/licenses/`
+- Source package: [app/src/main/assets/licenses/sources/XJFile-6.0.0.180805736-source.zip](app/src/main/assets/licenses/sources/XJFile-6.0.0.180805736-source.zip)
+
+### jcifs-ng
+
+`jcifs-ng` is licensed under LGPL-2.1 and is used for SMB share enumeration. The project provides the full license text and rebuild instructions as required.
+
+---
+
+<a id="en-thanks"></a>
+
+## Acknowledgements
+
+Thanks to the authors and maintainers of the open-source projects used here, especially:
+
+- AndroidX / Jetpack Compose
+- Media3 / ExoPlayer
+- SMBJ
+- JSch
+- jcifs-ng
+- Apache Commons Compress
+- XZ for Java
+- ICU4J
+- AndroidSVG
+
+And to everyone who tested, reported issues, or contributed suggestions.
+
+---
+
+<a id="en-links"></a>
+
+## Links
+
+- Releases: <https://github.com/ChenMoZhongChen/XJFile/releases>
+- Third-party notices: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)
+- Contributing: [CONTRIBUTING.md](CONTRIBUTING.md)
+- License: [LICENSE](LICENSE)
