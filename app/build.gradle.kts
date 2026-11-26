@@ -14,8 +14,8 @@ android {
         applicationId = "com.cmzc.xj_file.app"
         minSdk = 29
         targetSdk = 34
-        versionCode = 180805736
-        versionName = "6.0.0.180805736"
+        versionCode = 180805737
+        versionName = "6.1.0.180805737"
     }
 
     // release 签名。密码只从 local.properties 或环境变量读取，

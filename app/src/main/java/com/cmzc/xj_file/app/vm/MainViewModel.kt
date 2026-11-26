@@ -29,6 +29,10 @@ import com.cmzc.xj_file.app.core.image.Thumbnails
 import com.cmzc.xj_file.app.core.playback.MediaTypes
 import com.cmzc.xj_file.app.core.playback.PlaybackSource
 import com.cmzc.xj_file.app.core.playback.ViewerPage
+import com.cmzc.xj_file.app.core.settings.SortDirection
+import com.cmzc.xj_file.app.core.settings.SortField
+import com.cmzc.xj_file.app.core.settings.SortSettings
+import com.cmzc.xj_file.app.core.settings.SortSpec
 import com.cmzc.xj_file.app.core.settings.AppSettings
 import com.cmzc.xj_file.app.core.text.TextBom
 import com.cmzc.xj_file.app.core.text.TextCodecImpl
@@ -469,6 +473,48 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private fun fsForRestoreTag(tag: String): RemoteFileSystem? =
         runCatching { fsForTag(tag) }.getOrNull()
 
+    fun sortSpec(side: PanelSide): SortSpec {
+        val s = stateOf(side).value
+        return SortSettings.specFor(s.sourceId, s.currentPath)
+    }
+
+    /**
+     * 应用排列方式。默认只改当前焦点目录；勾选所有目录时写全局设置并清掉目录覆盖项。
+     */
+    fun applySort(side: PanelSide, spec: SortSpec, allDirectories: Boolean) {
+        val state = stateOf(side).value
+        SortSettings.set(state.sourceId, state.currentPath, spec, allDirectories)
+        if (allDirectories) {
+            listOf(PanelSide.LEFT, PanelSide.RIGHT).forEach { target ->
+                val st = stateOf(target).value
+                val sorted = sortItems(st.items, SortSettings.specFor(st.sourceId, st.currentPath))
+                stateOf(target).update { it.copy(items = sorted) }
+            }
+        } else {
+            val sorted = sortItems(state.items, SortSettings.specFor(state.sourceId, state.currentPath))
+            stateOf(side).update { it.copy(items = sorted) }
+        }
+    }
+
+    private fun sortItems(items: List<RemoteFile>, spec: SortSpec): List<RemoteFile> {
+        val byName = compareBy<RemoteFile> { it.name.lowercase() }
+        val base = when (spec.field) {
+            SortField.NAME -> byName
+            SortField.SIZE -> compareBy<RemoteFile> { if (it.isDirectory) 0L else it.size }.then(byName)
+            SortField.MODIFIED -> compareBy<RemoteFile> { it.lastModified }.then(byName)
+            SortField.TYPE -> compareBy<RemoteFile> {
+                if (it.isDirectory) "" else it.name.substringAfterLast('.', "").lowercase()
+            }.then(byName)
+        }
+        val directional = if (spec.direction == SortDirection.DESC) base.reversed() else base
+        val comparator = if (spec.foldersFirst) {
+            compareByDescending<RemoteFile> { it.isDirectory }.then(directional)
+        } else {
+            directional
+        }
+        return items.sortedWith(comparator)
+    }
+
     fun refresh(side: PanelSide, clearLastCreated: Boolean = true) {
         val s = stateOf(side).value
         // 手动刷新必须绕过磁盘清单的 30 秒缓存：刚插/刚换碟时用户按刷新就是要重新探测。
@@ -570,7 +616,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             try {
                 val fs = fsFor(sourceId)
-                val items = fs.list(path)
+                val items = sortItems(fs.list(path), SortSettings.specFor(sourceId, path))
                 val parent = if (PathUtil.isRemote(path)) PathUtil.remoteParent(path)
                 else PathUtil.localParent(path)
                 flow.update { st ->

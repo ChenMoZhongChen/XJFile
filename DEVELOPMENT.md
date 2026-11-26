@@ -1,7 +1,7 @@
 # XJ File 开发文档
 
 > 面向继续开发/维护这份代码的人。  
-> 对应版本：`6.0.0.180805736`（versionCode `180805736`）
+> 对应版本：`6.1.0.180805737`（versionCode `180805737`）
 
 ---
 
@@ -43,6 +43,8 @@ app/src/main/java/com/cmzc/xj_file/app/
 │  ├─ archive/                  # ArchiveReader、ArchiveExtractor、压缩写入
 │  ├─ disk/                     # 磁盘/光盘探测
 │  ├─ image/                    # ThumbnailLoader、AppIconLoader、RemoteAppIconLoader
+│  ├─ settings/                 # AppSettings、SortSettings
+│  ├─ root/                     # Root 环境检测/授权入口
 │  └─ cd/                       # CD TOC、WAV/PCM
 ├─ ui/
 │  ├─ MainScreen.kt
@@ -256,11 +258,42 @@ verifying, sha256
 
 ---
 
-## 10. 常见修改入口
+## 10. 排列方式、连接修改与 Root
+
+### 排列方式
+
+- `core/settings/SortSettings.kt`：排序字段/方向/文件夹优先，以及「当前目录覆盖」和「全局默认」；
+- `ui/components/SortDialog.kt`：右上角「排列方式」弹窗；
+- `MainViewModel.sortItems()` 在 `load()` 时排序；
+- `MainViewModel.applySort()` 立即重排当前栏；选择所有目录时同时重排两栏并清空目录覆盖项；
+- 默认作用范围是当前焦点目录，持久化到 `xj_sort_settings`。
+
+### 网络连接修改
+
+- 抽屉中长按连接，菜单：修改 / 重命名 / 删除；
+- 修改复用 `AddConnectionDialog(existing = conn)`；
+- 保存走 `MainViewModel.updateConnection()`，会关闭旧 fs 实例，下次打开按新配置重建；
+- 可修改名称、IP、端口、用户名、密码、SMB 共享名/域、SFTP 私钥/口令。
+
+### Root
+
+- `core/root/RootManager.kt`；
+- 启动时后台检查 `su`/Magisk/KernelSU/APatch 常见路径；
+- 没有 root 环境：状态置 `NOT_ROOTED`，不弹任何 UI；
+- 有 su：执行一次 `su -c id`，成功置 `GRANTED`，拒绝/超时置 `DENIED`；
+- `runAsRoot(command)` 供后续需要 root 的系统操作复用；
+- 当前没有把 root 权限接到普通文件浏览/删除上，避免未测试的越权行为。
+
+---
+
+## 11. 常见修改入口
 
 | 需求 | 文件 |
 |---|---|
 | 文件列表/行 | `ui/components/FilePanel.kt` |
+| 排列设置 | `core/settings/SortSettings.kt` / `ui/components/SortDialog.kt` |
+| 网络连接编辑 | `ui/AddConnectionDialog.kt` + `MainViewModel.updateConnection()` |
+| Root | `core/root/RootManager.kt` |
 | 文件图标 | `ui/components/FileTypeIcon.kt` |
 | 缩略图 | `core/image/ThumbnailLoader.kt` |
 | APK/EXE 图标 | `core/image/AppIconLoader.kt` / `RemoteAppIconLoader.kt` |
@@ -274,7 +307,15 @@ verifying, sha256
 
 ---
 
-## 11. 测试清单
+## 12. 测试清单
+
+### 排列/连接
+
+- [ ] 当前目录应用排序，切换目录后恢复默认/独立设置
+- [ ] 应用所有目录后重启仍保持
+- [ ] 名称/大小/时间/类型、升序/降序、文件夹优先
+- [ ] 长按连接 → 修改 → 改 IP/用户名/密码/共享名 → 保存
+- [ ] Root：没有 root 环境时无任何提示（按约定不主动测试）
 
 ### 传输
 
@@ -309,13 +350,13 @@ verifying, sha256
 
 ---
 
-## 12. 版本与发布
+## 13. 版本与发布
 
 版本名四段，最后一段必须等于 versionCode：
 
 ```text
-versionName = 6.0.0.180805736
-versionCode = 180805736
+versionName = 6.1.0.180805737
+versionCode = 180805737
 ```
 
 同步位置：
@@ -344,7 +385,7 @@ app/build/outputs/apk/release/app-release.apk
 
 ---
 
-## 13. 待办
+## 14. 待办
 
 - Office 内置渲染（暂缓）
 - RAR / LZH / ZPAQ 创建（暂缓）
@@ -353,7 +394,7 @@ app/build/outputs/apk/release/app-release.apk
 
 ---
 
-## 14. 约定
+## 15. 约定
 
 - 不要用 PowerShell 的 `Get-Content` + `Set-Content` 改中文文件，容易乱码；
 - 中文文本修改优先用编辑器/`edit`；

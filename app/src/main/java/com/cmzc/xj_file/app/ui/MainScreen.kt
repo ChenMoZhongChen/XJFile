@@ -117,6 +117,7 @@ import com.cmzc.xj_file.app.ui.components.AppTopBar
 import com.cmzc.xj_file.app.ui.components.BottomSheetLayer
 import com.cmzc.xj_file.app.ui.components.FilePanel
 import com.cmzc.xj_file.app.ui.components.LeftDrawerLayer
+import com.cmzc.xj_file.app.ui.components.SortDialog
 import com.cmzc.xj_file.app.ui.components.byEntryName
 import com.cmzc.xj_file.app.ui.gallery.GalleryScreen
 import com.cmzc.xj_file.app.ui.editor.TextEditorScreen
@@ -246,6 +247,8 @@ private fun MainContent(vm: MainViewModel) {
     var renameShortcutText by remember { mutableStateOf("") }
     var renameConn by remember { mutableStateOf<Connection?>(null) }
     var renameConnText by remember { mutableStateOf("") }
+    var editingConn by remember { mutableStateOf<Connection?>(null) }
+    var showSortDialog by remember { mutableStateOf(false) }
     var editingPathSide by remember { mutableStateOf<PanelSide?>(null) }
     var editingPathText by remember { mutableStateOf("") }
     // 「常用文件夹」是系统目录的快捷入口，用到的频率远低于「快捷目录」，
@@ -449,6 +452,7 @@ private fun MainContent(vm: MainViewModel) {
                             )
                         },
                         onGallery = { vm.openGallery(focusedSide) },
+                        onSort = { showSortDialog = true },
                         onExtractArchive = if (focusedArchive != null) {
                             { vm.extractArchiveAll() }
                         } else null,
@@ -1036,6 +1040,13 @@ private fun MainContent(vm: MainViewModel) {
                             }
                         ) {
                             DropdownMenuItem(
+                                text = { Text("修改") },
+                                onClick = {
+                                    editingConn = conn
+                                    showMenu = false
+                                }
+                            )
+                            DropdownMenuItem(
                                 text = { Text("重命名") },
                                 onClick = {
                                     renameConn = conn
@@ -1410,12 +1421,35 @@ private fun MainContent(vm: MainViewModel) {
         )
     }
 
+    if (showSortDialog) {
+        SortDialog(
+            initial = vm.sortSpec(focusedSide),
+            currentPath = focusedState.currentPath,
+            onDismiss = { showSortDialog = false },
+            onApply = { spec, allDirectories ->
+                vm.applySort(focusedSide, spec, allDirectories)
+                showSortDialog = false
+            }
+        )
+    }
+
     if (showAddDialog) {
         AddConnectionDialog(
             onDismiss = { showAddDialog = false },
             onConfirm = {
                 vm.addConnection(it)
                 showAddDialog = false
+            }
+        )
+    }
+
+    editingConn?.let { conn ->
+        AddConnectionDialog(
+            existing = conn,
+            onDismiss = { editingConn = null },
+            onConfirm = {
+                vm.updateConnection(it)
+                editingConn = null
             }
         )
     }

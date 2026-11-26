@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material.icons.filled.VerticalAlignTop
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -60,6 +61,7 @@ fun AppTopBar(
     onRefresh: () -> Unit,
     onTasks: () -> Unit,
     onSettings: () -> Unit,
+    onSort: () -> Unit = {},
     onGallery: () -> Unit = {},
     onExtractArchive: (() -> Unit)? = null,
     onPathClick: () -> Unit,
@@ -184,6 +186,19 @@ fun AppTopBar(
                             }
                         )
                     }
+                    DropdownMenuItem(
+                        text = { Text("排列方式") },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.Sort,
+                                contentDescription = null
+                            )
+                        },
+                        onClick = {
+                            showMoreMenu = false
+                            onSort()
+                        }
+                    )
                     DropdownMenuItem(
                         text = { Text("任务") },
                         leadingIcon = {

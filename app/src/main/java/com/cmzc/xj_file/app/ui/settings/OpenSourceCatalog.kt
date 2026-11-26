@@ -30,7 +30,7 @@ object OpenSourceCatalog {
         OpenSourceItem(
             id = "xjfile",
             name = "XJ File（本应用）",
-            version = "6.0.0.180805736",
+            version = "6.1.0.180805737",
             licenseLabel = "MIT License",
             licenseAsset = "xjfile-mit.txt",
             description = "XJ File 自身代码；第三方组件仍适用各自许可证。",
@@ -38,10 +38,10 @@ object OpenSourceCatalog {
             copyright = "Copyright (c) 2026 XJoffice ChenMoZhongChen",
             extraNotice = "XJ File 自身源码以 MIT License 发布。完整源码包已随 APK 提供，" +
                 "可导出后按 README 构建；修改 jcifs-ng 后可重新构建 APK。",
-            sourceAsset = "sources/XJFile-6.0.0.180805736-source.zip",
-            sourceFileName = "XJFile-6.0.0.180805736-source.zip",
-            sourceFileCount = 165,
-            sourceBytes = 571131,
+            sourceAsset = "sources/XJFile-6.1.0.180805737-source.zip",
+            sourceFileName = "XJFile-6.1.0.180805737-source.zip",
+            sourceFileCount = 168,
+            sourceBytes = 581177,
         ),
     )
 

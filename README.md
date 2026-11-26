@@ -6,7 +6,7 @@
 
 > 一个为 Android 设计的双栏文件管理器：本地存储、SMB、SFTP，压缩包、PDF、图片、音视频内置查看，CD/DVD/BD/M-DISC 探测，窗口化大文本编辑，以及可恢复的传输队列。
 
-![Version](https://img.shields.io/badge/version-6.0.0.180805736-2C6FDB)
+![Version](https://img.shields.io/badge/version-6.1.0.180805737-2C6FDB)
 ![Android](https://img.shields.io/badge/Android-10%2B-3DDC84?logo=android&logoColor=white)
 ![Kotlin](https://img.shields.io/badge/Kotlin-2.0.21-7F52FF?logo=kotlin&logoColor=white)
 ![Compose](https://img.shields.io/badge/Jetpack%20Compose-Material%203-4285F4?logo=jetpackcompose&logoColor=white)
@@ -66,31 +66,34 @@ XJ File 是一个 Android 双栏文件管理器：把「本地文件管理」和
 
 | 项目 | 值 |
 |---|---|
-| 版本名 | `6.0.0.180805736` |
-| versionCode | `180805736` |
+| 版本名 | `6.1.0.180805737` |
+| versionCode | `180805737` |
 | 包名 | `com.cmzc.xj_file.app` |
 | 最低系统 | Android 10（API 29） |
 | 目标 SDK | 34 |
 | 编译 SDK | 34 |
-| 当前 Release | `XJFile-6.0.0.180805736-release.apk` |
-| Release SHA-256 | `E19A1F407110B9FC093EB6E89179E6BFAFDDDEB9E108C90BEC27AC7BCCAAB887` |
+| 当前 Release | `XJFile-6.1.0.180805737-release.apk` |
+| Release SHA-256 | `17E9166F269F5ADFDAEAD5D2A28B2E9635828C21E33DA157E398BFFFFA10D012` |
 
 GitHub Releases：
 
 <https://github.com/ChenMoZhongChen/XJFile/releases>
 
-### 6.0 更新重点
+### 6.1 更新重点
 
-- 大文本编辑器改为 80 行一页的窗口化编辑，不再逐行弹窗；
-- 增加跨页拖选和跨页连续光标；
-- 远程文本保存增加 mtime/size 冲突检测，可保存本地副本、覆盖或取消；
-- 压缩包支持直接浏览、预览和单文件/全部解压；
-- PDF 使用内置查看器；
-- 文件列表图片/视频缩略图按显示像素解码并限制并发；
-- APK/EXE 读取真实图标，SMB/SFTP 只读必要字节；
-- 活跃传输任务持久化，进程被杀后恢复；恢复的移动任务补做删源；
-- 文件图标颜色开关只影响合成图标，真实图标保留原色；
-- 压缩包图标不显示 ZIP 字样，后缀字母改为镂空。
+- 右上角新增「排列方式」：名称/大小/修改时间/类型、升序/降序、文件夹优先；
+- 排列方式可只对当前目录生效，也可对所有目录生效，并永久保存；
+- 网络连接长按菜单新增「修改」，可修改名称、IP、端口、用户名、密码、共享名、私钥等；
+- 增加 Root 环境检测：没有 root 环境时完全静默；检测到 su 后后台申请一次权限；
+- 其余 6.0 能力保持：
+  - 大文本编辑器改为 80 行一页的窗口化编辑；
+  - 跨页拖选和跨页连续光标；
+  - 远程文本保存冲突检测；
+  - 压缩包浏览、预览、解压；
+  - 内置 PDF 查看器；
+  - 图片/视频缩略图按显示像素解码；
+  - APK/EXE 真实图标，SMB/SFTP 只读必要字节；
+  - 活跃传输任务持久化与恢复后移动补删源。
 
 ---
 
@@ -101,6 +104,8 @@ GitHub Releases：
 | 模块 | 能力 |
 |---|---|
 | 文件管理 | 双栏、本地/SMB/SFTP、复制/移动/删除/重命名/新建/属性/分享 |
+| 排列方式 | 名称/大小/修改时间/类型、升降序、文件夹优先、当前目录/所有目录 |
+| 网络连接 | SMB/SFTP 连接管理、长按修改连接详情 |
 | 传输 | 多车道、暂停/恢复/取消、冲突处理、断点续传、任务落盘、恢复后移动补删源 |
 | 压缩 | ZIP/ZIPX/TAR/TGZ/7Z/GZ/XZ 创建与读取，压缩包内浏览、预览、解压 |
 | 查看器 | PDF、图片、相册、音频、视频、后台音频、视频缩略图条 |
@@ -122,7 +127,9 @@ GitHub Releases：
 - 冲突处理：覆盖、跳过、重命名、保留两者；
 - 横滑多选、长按菜单、全选、复制路径；
 - 最近路径、快捷目录、常用文件夹；
-- 目录和文件按名称、大小、时间排序；
+- 目录和文件按名称、大小、时间、类型排序；
+- 「排列方式」支持升序/降序、文件夹优先，可只对当前目录或所有目录生效并持久化；
+- 网络连接长按可修改名称、IP、端口、用户名、密码、共享名、私钥等；
 - 文件属性、分享、打开方式选择；
 - 长按「打开方式」可以强制选择文本编辑器或系统应用。
 
@@ -350,7 +357,8 @@ GZ/XZ 只支持单文件；多文件请使用 TAR/TGZ。
 - 文件图标颜色开关；
 - 动画总开关；
 - 常用文件夹；
-- 网络连接管理（SMB / SFTP）；
+- 网络连接管理（SMB / SFTP），支持长按修改连接详情；
+- Root 环境检测：没有 root 时静默，有 su 时后台申请权限；
 - 传输任务抽屉；
 - 关于页、开源软件声明、许可证详情；
 - 内置源码包导出。
@@ -506,7 +514,7 @@ Copyright (c) 2026 XJoffice ChenMoZhongChen
 - [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)
 - 应用内「设置 → 关于 → 开源软件声明」
 - APK 内 `assets/licenses/`
-- 源码包：[app/src/main/assets/licenses/sources/XJFile-6.0.0.180805736-source.zip](app/src/main/assets/licenses/sources/XJFile-6.0.0.180805736-source.zip)
+- 源码包：[app/src/main/assets/licenses/sources/XJFile-6.1.0.180805737-source.zip](app/src/main/assets/licenses/sources/XJFile-6.1.0.180805737-source.zip)
 
 ### jcifs-ng
 
@@ -543,6 +551,8 @@ Copyright (c) 2026 XJoffice ChenMoZhongChen
 - 贡献指南：[CONTRIBUTING.md](CONTRIBUTING.md)
 - 许可证：[LICENSE](LICENSE)
 
+<sub>本文档由Agent总结</sub>
+
 ---
 
 # XJ File (Xinjin File Manager)
@@ -553,7 +563,7 @@ Copyright (c) 2026 XJoffice ChenMoZhongChen
 
 > A dual-pane Android file manager for local storage, SMB, and SFTP, with built-in archive browsing, PDF/image/audio/video previews, CD/DVD/BD/M-DISC detection, a windowed large-text editor, and a recoverable transfer queue.
 
-![Version](https://img.shields.io/badge/version-6.0.0.180805736-2C6FDB)
+![Version](https://img.shields.io/badge/version-6.1.0.180805737-2C6FDB)
 ![Android](https://img.shields.io/badge/Android-10%2B-3DDC84?logo=android&logoColor=white)
 ![Kotlin](https://img.shields.io/badge/Kotlin-2.0.21-7F52FF?logo=kotlin&logoColor=white)
 ![Compose](https://img.shields.io/badge/Jetpack%20Compose-Material%203-4285F4?logo=jetpackcompose&logoColor=white)
@@ -613,31 +623,34 @@ It is not a demo that puts everything into one list. Files are handled according
 
 | Item | Value |
 |---|---|
-| Version name | `6.0.0.180805736` |
-| versionCode | `180805736` |
+| Version name | `6.1.0.180805737` |
+| versionCode | `180805737` |
 | Package | `com.cmzc.xj_file.app` |
 | Minimum Android | Android 10 (API 29) |
 | Target SDK | 34 |
 | Compile SDK | 34 |
-| Current Release | `XJFile-6.0.0.180805736-release.apk` |
-| Release SHA-256 | `E19A1F407110B9FC093EB6E89179E6BFAFDDDEB9E108C90BEC27AC7BCCAAB887` |
+| Current Release | `XJFile-6.1.0.180805737-release.apk` |
+| Release SHA-256 | `17E9166F269F5ADFDAEAD5D2A28B2E9635828C21E33DA157E398BFFFFA10D012` |
 
 GitHub Releases:
 
 <https://github.com/ChenMoZhongChen/XJFile/releases>
 
-### What's New in 6.0
+### What's New in 6.1
 
-- Large-text editing is now windowed at 80 lines per page instead of a per-line dialog;
-- cross-page drag selection and continuous cursor movement;
-- remote text saving detects mtime/size conflicts and offers local copy, overwrite, or cancel;
-- archives can be browsed, previewed, and extracted file-by-file or in full;
-- PDFs use the built-in viewer;
-- image/video thumbnails decode at display size with bounded concurrency;
-- APK/EXE files use their real icons, with SMB/SFTP reading only necessary bytes;
-- active transfers are persisted and restored after process death; restored moves finish source cleanup;
-- the icon-color toggle only affects synthetic icons; detected real icons keep their original colors;
-- archive icons no longer show ZIP text, and extension letters are cut out.
+- New "Sort" entry in the top-right menu: name/size/modified/type, ascending/descending, folders first;
+- sort settings can apply to the current directory only or to all directories, and persist;
+- the network-connection long-press menu now has "Edit" for name, IP, port, username, password, share name, private key, and more;
+- Root detection: completely silent when no root environment exists; when `su` is present, request access once in the background;
+- existing 6.0 capabilities remain:
+  - windowed large-text editor with 80-line pages;
+  - cross-page drag selection and cursor movement;
+  - remote text save conflict detection;
+  - archive browsing, preview, and extraction;
+  - built-in PDF viewer;
+  - display-size image/video thumbnails;
+  - real APK/EXE icons, with SMB/SFTP reading only necessary bytes;
+  - persistent transfers and restored move source cleanup.
 
 ---
 
@@ -648,6 +661,8 @@ GitHub Releases:
 | Module | Capabilities |
 |---|---|
 | File management | Dual pane, local/SMB/SFTP, copy/move/delete/rename/create/properties/share |
+| Sorting | Name/size/modified/type, ascending/descending, folders first, current/all directories |
+| Network | SMB/SFTP connection management, long-press editing of connection details |
 | Transfers | Multiple lanes, pause/resume/cancel, conflict handling, resume, persistence, restored move cleanup |
 | Archives | Create/read ZIP/ZIPX/TAR/TGZ/7Z/GZ/XZ; browse, preview, extract |
 | Viewers | PDF, images, gallery, audio, video, background audio, video thumbnail strip |
@@ -669,7 +684,9 @@ GitHub Releases:
 - conflict handling: overwrite, skip, rename, keep both;
 - horizontal-swipe multi-select, long-press menu, select all, copy path;
 - recent paths, shortcut folders, and frequently used folders;
-- sorting by name, size, or time;
+- sorting by name, size, time, or type;
+- "Sort" supports ascending/descending and folders-first, with current-directory or all-directory persistence;
+- long-press a network connection to edit name, IP, port, username, password, share name, private key, and more;
 - file properties, sharing, and open-with selection;
 - long-press "Open with" to force the text editor or a system app.
 
@@ -897,7 +914,8 @@ Optical detection runs through PC-side scripts over an SFTP connection; it does 
 - file icon color toggle;
 - global animation toggle;
 - frequently used folders;
-- network connections (SMB / SFTP);
+- network connections (SMB / SFTP), with long-press editing of connection details;
+- Root environment detection: silent when no root is present, requests access in the background when `su` exists;
 - transfer task drawer;
 - About page, open-source notices, license details;
 - built-in source package export.
@@ -1051,7 +1069,7 @@ Third-party components remain under their own licenses and are not re-licensed b
 - [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)
 - In-app "Settings → About → Open-source notices"
 - APK `assets/licenses/`
-- Source package: [app/src/main/assets/licenses/sources/XJFile-6.0.0.180805736-source.zip](app/src/main/assets/licenses/sources/XJFile-6.0.0.180805736-source.zip)
+- Source package: [app/src/main/assets/licenses/sources/XJFile-6.1.0.180805737-source.zip](app/src/main/assets/licenses/sources/XJFile-6.1.0.180805737-source.zip)
 
 ### jcifs-ng
 
@@ -1087,3 +1105,5 @@ And to everyone who tested, reported issues, or contributed suggestions.
 - Third-party notices: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)
 - Contributing: [CONTRIBUTING.md](CONTRIBUTING.md)
 - License: [LICENSE](LICENSE)
+
+<sub>本文档由Agent总结</sub>

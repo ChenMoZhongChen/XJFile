@@ -48,8 +48,14 @@ class XjFileApp : Application() {
         // 5. App 级设置（动画 / 下拉刷新 / 外观）。失败也不能让 App 起不来
         runCatching { com.cmzc.xj_file.app.core.settings.AppSettings.init(this) }
             .onFailure { Log.e("XjFileBC", "AppSettings 初始化失败", it) }
+        runCatching { com.cmzc.xj_file.app.core.settings.SortSettings.init(this) }
+            .onFailure { Log.e("XjFileBC", "SortSettings 初始化失败", it) }
 
-        // 6. 音频后台播放：全局播放器 + 播放通知频道。
+        // 6. Root 环境：没有 root 就静默什么都不做；有 su 才后台申请一次。
+        runCatching { com.cmzc.xj_file.app.core.root.RootManager.detectAndRequestAsync() }
+            .onFailure { Log.e("XjFileBC", "Root 检测初始化失败", it) }
+
+        // 7. 音频后台播放：全局播放器 + 播放通知频道。
         //    播放器是第一次打开音频页时才真正创建的，这里只存 Application context。
         runCatching {
             PlaybackEngine.init(this)
