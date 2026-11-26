@@ -6,7 +6,7 @@
 
 > 一个为 Android 设计的双栏文件管理器：本地存储、SMB、SFTP，压缩包、PDF、图片、音视频内置查看，CD/DVD/BD/M-DISC 探测，窗口化大文本编辑，以及可恢复的传输队列。
 
-![Version](https://img.shields.io/badge/version-6.1.0.180805737-2C6FDB)
+![Version](https://img.shields.io/badge/version-6.0.1.180810042-2C6FDB)
 ![Android](https://img.shields.io/badge/Android-10%2B-3DDC84?logo=android&logoColor=white)
 ![Kotlin](https://img.shields.io/badge/Kotlin-2.0.21-7F52FF?logo=kotlin&logoColor=white)
 ![Compose](https://img.shields.io/badge/Jetpack%20Compose-Material%203-4285F4?logo=jetpackcompose&logoColor=white)
@@ -66,20 +66,20 @@ XJ File 是一个 Android 双栏文件管理器：把「本地文件管理」和
 
 | 项目 | 值 |
 |---|---|
-| 版本名 | `6.1.0.180805737` |
-| versionCode | `180805737` |
+| 版本名 | `6.0.1.180810042` |
+| versionCode | `180810042` |
 | 包名 | `com.cmzc.xj_file.app` |
 | 最低系统 | Android 10（API 29） |
 | 目标 SDK | 34 |
 | 编译 SDK | 34 |
-| 当前 Release | `XJFile-6.1.0.180805737-release.apk` |
-| Release SHA-256 | `17E9166F269F5ADFDAEAD5D2A28B2E9635828C21E33DA157E398BFFFFA10D012` |
+| 当前 Release | `XJFile-6.0.1.180810042-release.apk` |
+| Release SHA-256 | `A6CD10ED90275CE37FB8F6840A18EDA07067822C19CB7F7EBBD9D242C507CDF5` |
 
 GitHub Releases：
 
 <https://github.com/ChenMoZhongChen/XJFile/releases>
 
-### 6.1 更新重点
+### 6.0.1 更新重点
 
 - 右上角新增「排列方式」：名称/大小/修改时间/类型、升序/降序、文件夹优先；
 - 排列方式可只对当前目录生效，也可对所有目录生效，并永久保存；
@@ -514,7 +514,7 @@ Copyright (c) 2026 XJoffice ChenMoZhongChen
 - [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)
 - 应用内「设置 → 关于 → 开源软件声明」
 - APK 内 `assets/licenses/`
-- 源码包：[app/src/main/assets/licenses/sources/XJFile-6.1.0.180805737-source.zip](app/src/main/assets/licenses/sources/XJFile-6.1.0.180805737-source.zip)
+- 源码包：[app/src/main/assets/licenses/sources/XJFile-6.0.1.180810042-source.zip](app/src/main/assets/licenses/sources/XJFile-6.0.1.180810042-source.zip)
 
 ### jcifs-ng
 
@@ -563,7 +563,7 @@ Copyright (c) 2026 XJoffice ChenMoZhongChen
 
 > A dual-pane Android file manager for local storage, SMB, and SFTP, with built-in archive browsing, PDF/image/audio/video previews, CD/DVD/BD/M-DISC detection, a windowed large-text editor, and a recoverable transfer queue.
 
-![Version](https://img.shields.io/badge/version-6.1.0.180805737-2C6FDB)
+![Version](https://img.shields.io/badge/version-6.0.1.180810042-2C6FDB)
 ![Android](https://img.shields.io/badge/Android-10%2B-3DDC84?logo=android&logoColor=white)
 ![Kotlin](https://img.shields.io/badge/Kotlin-2.0.21-7F52FF?logo=kotlin&logoColor=white)
 ![Compose](https://img.shields.io/badge/Jetpack%20Compose-Material%203-4285F4?logo=jetpackcompose&logoColor=white)
@@ -623,20 +623,20 @@ It is not a demo that puts everything into one list. Files are handled according
 
 | Item | Value |
 |---|---|
-| Version name | `6.1.0.180805737` |
-| versionCode | `180805737` |
+| Version name | `6.0.1.180810042` |
+| versionCode | `180810042` |
 | Package | `com.cmzc.xj_file.app` |
 | Minimum Android | Android 10 (API 29) |
 | Target SDK | 34 |
 | Compile SDK | 34 |
-| Current Release | `XJFile-6.1.0.180805737-release.apk` |
-| Release SHA-256 | `17E9166F269F5ADFDAEAD5D2A28B2E9635828C21E33DA157E398BFFFFA10D012` |
+| Current Release | `XJFile-6.0.1.180810042-release.apk` |
+| Release SHA-256 | `A6CD10ED90275CE37FB8F6840A18EDA07067822C19CB7F7EBBD9D242C507CDF5` |
 
 GitHub Releases:
 
 <https://github.com/ChenMoZhongChen/XJFile/releases>
 
-### What's New in 6.1
+### What's New in 6.0.1
 
 - New "Sort" entry in the top-right menu: name/size/modified/type, ascending/descending, folders first;
 - sort settings can apply to the current directory only or to all directories, and persist;
@@ -1069,7 +1069,7 @@ Third-party components remain under their own licenses and are not re-licensed b
 - [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)
 - In-app "Settings → About → Open-source notices"
 - APK `assets/licenses/`
-- Source package: [app/src/main/assets/licenses/sources/XJFile-6.1.0.180805737-source.zip](app/src/main/assets/licenses/sources/XJFile-6.1.0.180805737-source.zip)
+- Source package: [app/src/main/assets/licenses/sources/XJFile-6.0.1.180810042-source.zip](app/src/main/assets/licenses/sources/XJFile-6.0.1.180810042-source.zip)
 
 ### jcifs-ng
 

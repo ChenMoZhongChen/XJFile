@@ -1,7 +1,7 @@
 # XJ File 开发文档
 
 > 面向继续开发/维护这份代码的人。  
-> 对应版本：`6.1.0.180805737`（versionCode `180805737`）
+> 对应版本：`6.0.1.180810042`（versionCode `180810042`）
 
 ---
 
@@ -355,8 +355,8 @@ verifying, sha256
 版本名四段，最后一段必须等于 versionCode：
 
 ```text
-versionName = 6.1.0.180805737
-versionCode = 180805737
+versionName = 6.0.1.180810042
+versionCode = 180810042
 ```
 
 同步位置：
