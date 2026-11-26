@@ -4,6 +4,8 @@
 
 [简体中文](#zh-cn) | [English](#en-us)
 
+<sub>文档由Agent总结整理</sub>
+
 > 一个为 Android 设计的双栏文件管理器：本地存储、SMB、SFTP，压缩包、PDF、图片、音视频内置查看，CD/DVD/BD/M-DISC 探测，窗口化大文本编辑，以及可恢复的传输队列。
 
 ![Version](https://img.shields.io/badge/version-6.0.1.180810042-2C6FDB)
@@ -551,8 +553,6 @@ Copyright (c) 2026 XJoffice ChenMoZhongChen
 - 贡献指南：[CONTRIBUTING.md](CONTRIBUTING.md)
 - 许可证：[LICENSE](LICENSE)
 
-<sub>本文档由Agent总结</sub>
-
 ---
 
 # XJ File (Xinjin File Manager)
@@ -560,6 +560,8 @@ Copyright (c) 2026 XJoffice ChenMoZhongChen
 <a id="en-us"></a>
 
 [简体中文](#zh-cn) | [English](#en-us)
+
+<sub>文档由Agent总结整理</sub>
 
 > A dual-pane Android file manager for local storage, SMB, and SFTP, with built-in archive browsing, PDF/image/audio/video previews, CD/DVD/BD/M-DISC detection, a windowed large-text editor, and a recoverable transfer queue.
 
@@ -1105,5 +1107,3 @@ And to everyone who tested, reported issues, or contributed suggestions.
 - Third-party notices: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)
 - Contributing: [CONTRIBUTING.md](CONTRIBUTING.md)
 - License: [LICENSE](LICENSE)
-
-<sub>本文档由Agent总结</sub>
